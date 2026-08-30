@@ -1,0 +1,180 @@
+# Clipper — Further Plan (updated 2026-08-30)
+
+Where the project goes next. Built on top of what is already proven (README.md):
+the OpenShorts pipeline runs end-to-end on this machine — download →
+transcribe → Gemini moment scoring → face-tracked 9:16 crop → captions →
+review queue.
+
+The core question this plan answers: **what makes a clip actually pull views,
+and how do we make the pipeline produce that by default, then post it?**
+
+---
+
+## 1. The verified viral short format (what the research says in 2026)
+
+These are the levers that consistently show up across 2026 algorithm/retention
+breakdowns — not folklore, but the recurring consensus of retention-curve
+studies and platform algorithm write-ups:
+
+| # | Lever | Evidence |
+|---|---|---|
+| 1 | **Hook lands in the first 1–3 s** — curiosity gap, visual shock, bold claim, proof-upfront, mid-action story. Weak hooks "sound like setup"; the algorithm tests the hook on a small viewer batch and only expands reach if early retention holds. | backstage.com (5 hook types), socialync.io, prodshort.com |
+| 2 | **Retention > likes.** TikTok 2026 completion bar moved to ~70%; **rewatch rate multiplies reach**; watch-time, shares/saves and search intent outrank likes and follower count. | socialync.io ("7 signals"), darkroomagency.com |
+| 3 | **15–30 s is the sweet spot.** Shorts under ~30 s regularly show 100 %+ retention because of replay loops; a 30 s Short at ~85 % watch time beats a 60 s one. Longer only wins if retention justifies it. | virvid.ai (retention data), prodshort.com |
+| 4 | **Hook → body → payoff → seamless loop.** No intro, no greeting, no dead air; the ending snaps back toward the opening beat so rewatches feel continuous. | socialync.io (structure guide), aibrify.com (retention curves) |
+| 5 | **Sound-off design.** Burned captions + text overlays are mandatory — most FYP views are sound-off/skim-first. | prodshort.com playbook |
+| 6 | **Pattern interrupts / cut pacing.** Punch-ins, layout changes, no static frame for more than a few seconds. | prodshort.com, aibrify.com |
+
+Sources: [socialync.io — short-form structure guide 2026](https://www.socialync.io/blog/short-form-video-structure-guide-2026),
+[virvid.ai — best Shorts length / retention data](https://virvid.ai/blog/best-shorts-length-retention-2026),
+[backstage.com — 5 social media hook types](https://www.backstage.com/magazine/article/social-media-hook-examples-80055/),
+[darkroomagency.com — TikTok algorithm 2026](https://www.darkroomagency.com/observatory/how-tiktok-algorithm-works-in-2026),
+[prodshort.com — 2026 viral playbook](https://prodshort.com).
+
+## 2. How the pipeline now enforces that format (Phase 7 — done)
+
+OpenShorts already had most levers built in — they were just off by default.
+The viral format is now applied **per job** by `scripts/viral-job.ps1`
+(double-click `viral-clip.bat <url>`), so no global config change is needed:
+
+| Verified lever | Pipeline mechanism | How it's wired |
+|---|---|---|
+| Hook in 1–3 s | Gemini "THE 2-SECOND TEST" is the primary scoring criterion (`gemini_worker.py`) + **auto-hook text overlay burned into the first seconds** | `auto_hook=true`, style `outline` (bold white + black outline, MrBeast-style), positioned top |
+| Hook copy patterns | HOOK PLAYBOOK in the detail prompt: open question / hot take / number shock / story loop / POV | built into the prompts |
+| 15–34 s band | per-job clip-length controls | `clip_min_seconds=15`, `clip_max_seconds=34`, `target_clips=5` |
+| Loop + no dead air | **NEW prompt rules (this update):** LOOP RULE — end within ~1 s of the payoff, trim trailing silence/filler, ending that snaps back toward the opening beat; rewatch explicitly added to the scoring criteria | patched into `gemini_worker.py` SCORE + DETAIL prompts |
+| Sound-off design | karaoke captions — bold Anton, white uppercase, yellow active word, pop effect | on by default (`AUTO_CAPTIONS`) |
+| Pattern interrupts | **punch-ins** on audio beats + **auto layout picker** (Gemini chooses per scene) | `layouts="auto,punch_in,speaker_cut,split"` |
+| Multi-speaker dynamism | hard speaker cuts / stacked split layout | same `layouts` field |
+| Platform specs | 1080×1920, −14 LUFS loudness, per-platform titles/descriptions with hashtags | built into the engine |
+
+**Verification:** run `viral-clip.bat` on a long-form source and confirm the
+output has (a) the hook overlay burned in the top area, (b) karaoke captions,
+(c) clips inside the 15–34 s band, (d) per-platform copy in the metadata.
+The result of that run is recorded at the bottom of this file.
+
+## 3. Posting workflow (Phase 8 — wiring done, go-live pending accounts)
+
+Posting goes through OpenShorts' native Upload-Post integration
+(`POST /api/social/post`) — it uploads the finished MP4 and can post now or
+schedule. The tool is `scripts/post-clip.ps1` (double-click wrapper:
+`post-clip.bat`).
+
+The workflow deliberately keeps a human gate — it just makes the gate fast:
+
+1. **Review** the finished batch in the web UI (<http://localhost:5175>) —
+   reject anything embarrassing (wrong hook text, weak moment, bad crop).
+2. **List** what's ready with per-clip score + hook + generated copy:
+   `post-clip.bat <job_id>` (dry-run by default — it only lists).
+3. **Post or schedule the picks** (one command per clip):
+   `post-clip.bat <job_id> -ClipIndex 0 -Post -Profile <upload-post-profile>`
+   - `‑ScheduledDate "2026-09-01T17:30:00" -Timezone "Asia/Kolkata"` schedules
+     instead of posting immediately.
+   - Title/description default to Gemini's per-platform copy; pass
+     `-Title`/`-Description` to override.
+4. **Cadence (the plan): 2 clips/day** — one ~12:30, one ~19:30 local time,
+   staggered across YouTube Shorts and Instagram Reels (and Bilibili manually
+   — see below). Never batch-dump 5 clips at once: spaced posts each get
+   their own test batch from the algorithm.
+
+**Target platform set (updated 2026-08-30): YouTube + Instagram + Bilibili.**
+TikTok is dropped. Upload-Post supports YouTube and Instagram natively, but
+**Bilibili is not among its 22 platforms** (verified 2026-08-30 against
+upload-post.com/platforms) — so Bilibili is a manual step: open the finished
+`subtitled_*clip_N.mp4` from `openshorts\output\<job_id>\` and upload via
+[member.bilibili.com](https://member.bilibili.com/platform/upload/video/frame).
+Automating Bilibili (session-cookie uploaders) exists but carries the same
+ToS exposure as yt-dlp — only consider it after the manual cadence feels
+like real friction.
+
+**Blocking prerequisite (user-side, one-time): ~~get the Upload-Post key and
+connect the accounts~~ DONE 2026-08-30** — key is set in the root `.env`,
+verified live through the backend (`/api/social/user`): profile
+**`Wybe`** has **instagram + youtube** connected (the empty "default"
+profile is unused). The remaining gate is the human review before the first
+`-Post`. The steps, for re-reference:
+1. Sign up at <https://app.upload-post.com> (free tier is enough to start).
+2. Dashboard → **API Keys** → create a key, copy it.
+3. Paste into the root `.env` as `UPLOAD_POST_API_KEY=<key>`, then recreate
+   the backend: `docker-compose -f openshorts/docker-compose.yml up -d`
+   (env_file is read at container creation, a plain restart is not enough).
+4. In the dashboard connect **YouTube** and **Instagram** (OAuth) and note
+   the profile name it shows.
+5. `check-social.bat` verifies: shows the profile + connected platforms
+   (read-only). Only then does `post-clip.bat ... -Post` work.
+
+## 4. Retention feedback loop (Phase 9 — next after first posts)
+
+Views come from iterating on real numbers, not from the first batch:
+
+- Pull per-post impressions/analytics via OpenShorts' Upload-Post analytics
+  endpoints (`/api/social/analytics*`) into `analytics_log.csv`:
+  date, platform, clip id, predicted_score, hook type, length, 24 h views,
+  completion, rewatches.
+- Weekly: compare **predicted vs actual**. Sort by actual retention, not
+  views. Identify which hook patterns (question vs hot-take vs number-shock)
+  and which lengths win for the niche.
+- Feed the winners back: bias `target_clips`/length band toward what the data
+  says, and keep the hook playbook patterns that correlate with completion.
+- Kill rule: a format that underperforms 3 batches in a row gets dropped.
+
+## 5. Stream-link ingestion (Phase 10 — hardening)
+
+- **YouTube VODs/live archives:** working (proven). Age-restricted sources
+  need an age-verified account's cookies (see README — the IShowSpeed test
+  URL is blocked by account state, not the pipeline).
+- **Twitch VODs:** yt-dlp handles them generically — no Twitch-specific code
+  exists, so treat as unproven until one VOD runs end-to-end. Sub-only VODs
+  need Twitch cookies in the same `/app/cookies.txt` path. **Test: run one
+  Twitch VOD through `viral-clip.bat` and record the result here.**
+- **Kick/Rumble/direct file URLs:** same generic path; verify opportunistically.
+- The pre-flight quality gate (min 720p, min 45 s) protects against burning
+  20 minutes on a bad source.
+- **Source-resolution cap (added 2026-08-30):** the root `.env` sets
+  `MAX_SOURCE_HEIGHT=720` — every yt-dlp download (YouTube, Twitch, direct
+  URLs) picks a ≤720p rendition, which is the fix for the 1080p60 HLS stall
+  above. Finished clips still deliver 1080×1920 (the 9:16 crop is upscaled by
+  `delivery_size`; frame-verified). Per job: `viral-clip.bat <url>
+  -MaxSourceHeight 1080` for a full-quality source, or the API's
+  `max_source_height` field (144–2160; empty string = use the deployment
+  default).
+
+## 6. Scale + A/B (Phase 11 — only after Phase 9 shows signal)
+
+- Overnight batch queue: paste 5–10 source links, stagger the schedule across
+  the week (OpenShorts scheduling + Upload-Post calendar).
+- Hook A/B: render the same clip twice with different `auto_hook_style` /
+  hook text, post to different platforms or time slots, compare retention.
+- Niche expansion only after 2 weeks of data on the test niche; the pipeline
+  is niche-agnostic by design.
+
+## 7. Constraints that stay
+
+- Self-hosted Docker only; no cloud tier. Keys in `.env` only.
+- Posting stays behind the review gate: `post-clip.ps1` dry-runs by default
+  and requires an explicit `-Post` flag with a specific clip index.
+- Reposting footage you don't own is the biggest real risk (README §ToS) —
+  transformative-commentary or owned/licensed footage before scaling.
+- Every phase is verified against a real run before the next one starts.
+
+---
+
+## Verification log
+
+| Date | Check | Result |
+|---|---|---|
+| 2026-08-28 | Pipeline end-to-end (GTA6 source, 5 clips, 14 min) | ✅ proven (README) |
+| 2026-08-30 | Viral-format job: hook overlay + captions + 15–34 s band + loop prompts | ✅ **job `db806c36` on the GTA6 source: 5 clips, durations 30.4/21.6/30.9/30.2/19.8 s (all in band), hook overlay burned in (`auto_hook` recorded on all 5; frame-extract verified: top hook text + karaoke captions with yellow active word, 1080×1920), per-platform copy generated (YT title + TikTok/IG descriptions), Gemini cost $0.0053, auto layout picker ran** |
+| 2026-08-30 | Root `.env` loaded into backend container | ✅ docker-compose `env_file` now includes `../.env`; verified via `docker exec` env probe |
+| 2026-08-30 | Loop/dead-air prompt rules active | ✅ `REWATCH VALUE` + `LOOP RULE` confirmed loaded in the running container (`import gemini_worker` probe) |
+| 2026-08-30 | Upload-Post key valid + platforms connected | ❌ **blocked: `UPLOAD_POST_API_KEY` is empty in `.env`** — user must get a key at app.upload-post.com, paste it into the root `.env`, and connect TikTok/IG/YT accounts. `post-clip.bat` correctly refuses with instructions (fail-closed verified) |
+| 2026-08-30 | Posting leg readiness up to the vendor boundary | ✅ **`post-clip.bat` dry-run listing works keyless** (all 5 clips listed with score/hook/YT title/TikTok+IG copy); backend `POST /api/social/post` verified live: routing + job lookup + ownership pass, returns local `400 Missing Upload-Post API key` before any vendor call. With a real key + profile the same path posts — no code changes needed |
+| 2026-08-30 | **Twitch VOD (stream link) end-to-end** | ✅ **proven** — GDQ gamescom VOD (`twitch.tv/videos/2860474714`, 73 min) → 5 clips, 26.9/28.6/30.1/31.5/30.0 s (all in band), scores 82/90/88/92/85, hooks ("Even the pro has never seen this."), punch-ins fired, karaoke captions + hook overlay frame-verified, 1080×1920. yt-dlp handles Twitch generically, no cookies needed for public VODs |
+| 2026-08-30 | Twitch 1080p60 pipeline download can stall | ✅ **fixed (was ⚠️)**: the flaky-network stall is now solved in-engine by `MAX_SOURCE_HEIGHT` — see the two rows below |
+| 2026-08-30 | Source cap `MAX_SOURCE_HEIGHT=720` (deployment default, .env → container → worker) | ✅ **proven end-to-end** — `printenv` in container = 720; worker logs `📐 MAX_SOURCE_HEIGHT=720: capping the source at 720p.`; smoke job `3ae47cce` (83 s YT source) downloaded at **1280×720** and completed with 4 clips, all inside the 15–34 s band (21.5/24.1/17.5/16.0 s, scores 78–88), delivery **1080×1920** (upscale floor held). Capped format string also resolves on the real GDQ Twitch VOD to `720p60 avc1` |
+| 2026-08-30 | Per-job cap override (`max_source_height` API field / `viral-clip.bat -MaxSourceHeight`) | ✅ **proven end-to-end** — job `9f96dcfd` with `max_source_height=1080` logged `[source-cap] max_source_height=1080`, downloaded at **1920×1080**, completed with 5 in-band clips (17.6–27.3 s, scores 72–88). Invalid value → clean `400 must be between 144 and 2160` (fail-loud verified) |
+| 2026-08-30 | Upload-Post key valid + platforms connected | ✅ **unblocked** — key set in `.env` (JWT from app.upload-post.com), container recreated, verified live via backend `/api/social/user`: profile **`Wybe`** has **instagram + youtube** connected. Target set: YT + IG auto-post, Bilibili manual (Upload-Post doesn't support it) |
+| 2026-08-30 | Posting leg readiness, full chain | ✅ **ready, gated only by the human review** — dry-run listing of `db806c36` prints all 5 clips with score/hook/YT title/IG+TikTok copy (stored copy is clean UTF-8; console mojibake was a PS 5.1 decode artifact only). Next action: user reviews the MP4s in `openshorts\output\db806c36-…\` (final files = `subtitled_*clip_N.mp4`), then fires `post-clip.bat db806c36-… -ClipIndex <N> -Post -Profile Wybe` |
+| 2026-08-30 | **First real post (Phase 8 go-live)** | ✅ **LIVE** — clip 0 (score 85, "GTA 6: Every Confirmed Mini-Game So Far!") posted to **YouTube + Instagram** via Upload-Post (`success:true`, vendor job `25b3b86d…`, async durable worker). Clips 2 ("Arsenal", 82) and 1 ("Pets", 78) **scheduled**: Aug 31 19:30 IST + Sep 1 12:30 IST (verified in the vendor queue via `/api/social/scheduled?user=Wybe`). Cadence chosen by quota: free tier = **10 uploads/month** (worst case 2 per call) → ~1 clip/day until a paid plan |
+| 2026-08-30 | Findable clip names | ✅ every successful `-Post` now also saves `posts\<date>_<yt-title-slug>_<score>.mp4` (e.g. `posts\2026-08-30_gta-6-every-confirmed-mini-game-so-far_85.mp4`); originals keep pipeline names because the backend/UI reference them by path. `post-clip.ps1 -Yes` skips the interactive POST confirm for scripted runs |
+| (pending) | 24 h analytics pull into `analytics_log.csv` (Phase 9) | after the first posts accrue views — `/api/social/analytics*` endpoints are live; `posts\` copies make per-clip matching easy |

@@ -1,0 +1,23 @@
+# Secrets
+.env
+cookies.txt
+
+# OpenShorts runtime artifacts (media, models, job outputs)
+openshorts/output/
+openshorts/uploads/
+openshorts/*.mp4
+openshorts/.cache/
+openshorts/*.gif
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs & local tooling
+logs/
+bin/
+
+# Posted-clip exports (copies with clean names)
+posts/
