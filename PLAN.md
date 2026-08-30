@@ -53,7 +53,7 @@ output has (a) the hook overlay burned in the top area, (b) karaoke captions,
 (c) clips inside the 15–34 s band, (d) per-platform copy in the metadata.
 The result of that run is recorded at the bottom of this file.
 
-## 3. Posting workflow (Phase 8 — wiring done, go-live pending accounts)
+## 3. Posting workflow (Phase 8 — live via Upload-Post; Phase 8b adds the self-hosted unlimited leg)
 
 Posting goes through OpenShorts' native Upload-Post integration
 (`POST /api/social/post`) — it uploads the finished MP4 and can post now or
@@ -73,19 +73,42 @@ The workflow deliberately keeps a human gate — it just makes the gate fast:
    - Title/description default to Gemini's per-platform copy; pass
      `-Title`/`-Description` to override.
 4. **Cadence (the plan): 2 clips/day** — one ~12:30, one ~19:30 local time,
-   staggered across YouTube Shorts and Instagram Reels (and Bilibili manually
-   — see below). Never batch-dump 5 clips at once: spaced posts each get
-   their own test batch from the algorithm.
+   staggered across YouTube Shorts and Instagram Reels (all three platforms —
+   including Bilibili — via `uploader.bat` as of Phase 8b, see 3b). Never
+   batch-dump 5 clips at once: spaced posts each get their own test batch
+   from the algorithm.
 
 **Target platform set (updated 2026-08-30): YouTube + Instagram + Bilibili.**
-TikTok is dropped. Upload-Post supports YouTube and Instagram natively, but
-**Bilibili is not among its 22 platforms** (verified 2026-08-30 against
-upload-post.com/platforms) — so Bilibili is a manual step: open the finished
-`subtitled_*clip_N.mp4` from `openshorts\output\<job_id>\` and upload via
-[member.bilibili.com](https://member.bilibili.com/platform/upload/video/frame).
-Automating Bilibili (session-cookie uploaders) exists but carries the same
-ToS exposure as yt-dlp — only consider it after the manual cadence feels
-like real friction.
+TikTok is dropped.
+
+### 3b. Self-hosted uploader (Phase 8b — the unlimited leg, replaces Upload-Post as default)
+
+Upload-Post turned out to be a dead end for the real goal: its free tier caps
+at **10 uploads/month** and Bilibili isn't among its 22 platforms (verified
+against upload-post.com/platforms). No open-source scheduler covers all three
+either (Postiz has no Bilibili; instagrapi's Reels uploads are officially
+unmaintained). So the posting leg is now **`uploader/`** — a small self-hosted
+orchestrator composing the best client per platform:
+
+| Platform | Client | Auth | Monthly cap |
+|---|---|---|---|
+| YouTube | official Data API v3 (`google-api-python-client`, resumable) | OAuth desktop flow, token cached in `uploader/credentials/` | none that matters (quota ≥ ~6 uploads/day free) |
+| Instagram | official Meta Graph API Reels publish (container → poll → `media_publish`) | long-lived IG token + user id in `.env` | none; public video URL solved by auto Cloudflare quick-tunnel over the backend's `/videos` mount |
+| Bilibili | `bilibili-api-python` `video_uploader` (open source, maintained 2026) | browser cookies in `.env` (`BILI_SESSDATA`/`BILI_JCT`/`BILI_BUVID3`) | none official; keep the 2/day cadence for risk control |
+
+Design rules kept from the Upload-Post era:
+
+- **Human gate unchanged**: dry-run by default; a real post needs
+  `uploader.bat post --job <id> --clip <N> --post` (and `--yes` only skips the
+  interactive confirm for scripted runs).
+- Every attempt is appended to `uploader/credentials/ledger.json`; successful
+  posts still export a clean-named copy to `posts\`.
+- One platform failing never blocks the others; exit code reports partial
+  success (0 all, 2 partial, 1 none).
+- `uploader.bat check` / `doctor` give per-platform readiness + setup steps.
+
+The Upload-Post path (`scripts/post-clip.ps1`) stays wired as a paid-tier
+fallback and is still what the already-scheduled Upload-Post posts run on.
 
 **Blocking prerequisite (user-side, one-time): ~~get the Upload-Post key and
 connect the accounts~~ DONE 2026-08-30** — key is set in the root `.env`,
@@ -177,4 +200,10 @@ Views come from iterating on real numbers, not from the first batch:
 | 2026-08-30 | Posting leg readiness, full chain | ✅ **ready, gated only by the human review** — dry-run listing of `db806c36` prints all 5 clips with score/hook/YT title/IG+TikTok copy (stored copy is clean UTF-8; console mojibake was a PS 5.1 decode artifact only). Next action: user reviews the MP4s in `openshorts\output\db806c36-…\` (final files = `subtitled_*clip_N.mp4`), then fires `post-clip.bat db806c36-… -ClipIndex <N> -Post -Profile Wybe` |
 | 2026-08-30 | **First real post (Phase 8 go-live)** | ✅ **LIVE** — clip 0 (score 85, "GTA 6: Every Confirmed Mini-Game So Far!") posted to **YouTube + Instagram** via Upload-Post (`success:true`, vendor job `25b3b86d…`, async durable worker). Clips 2 ("Arsenal", 82) and 1 ("Pets", 78) **scheduled**: Aug 31 19:30 IST + Sep 1 12:30 IST (verified in the vendor queue via `/api/social/scheduled?user=Wybe`). Cadence chosen by quota: free tier = **10 uploads/month** (worst case 2 per call) → ~1 clip/day until a paid plan |
 | 2026-08-30 | Findable clip names | ✅ every successful `-Post` now also saves `posts\<date>_<yt-title-slug>_<score>.mp4` (e.g. `posts\2026-08-30_gta-6-every-confirmed-mini-game-so-far_85.mp4`); originals keep pipeline names because the backend/UI reference them by path. `post-clip.ps1 -Yes` skips the interactive POST confirm for scripted runs |
+| 2026-08-30 | **Uploader research: no OSS scheduler covers all 3 platforms** | ✅ Postiz (30+ platforms) has **no Bilibili**; Upload-Post neither (22 platforms); instagrapi repo states Reels uploads "no longer maintained" (Meta restriction). Conclusion: compose per-platform clients — official YouTube Data API v3 + official Meta Graph API + bilibili-api-python 17.4.2 (actively maintained, `video_uploader` module verified against the installed lib's signatures) |
+| 2026-08-30 | **Uploader environment** (`uploader\setup-deps.bat`) | ✅ Python 3.11 venv created; deps installed: google-api-python-client 2.199.0, google-auth-oauthlib 1.4.1, requests 2.34.2, bilibili-api-python 17.4.2. `uploader.bat doctor`: all 4 python deps OK, backend reachable, ffmpeg present (Bilibili auto-cover), cloudflared missing (IG needs it or `IG_PUBLIC_BASE_URL`), all 3 credentials correctly reported missing |
+| 2026-08-30 | **Uploader dry-run against the real job** (`db806c36`) | ✅ `list` prints all 5 clips with score/hook/YT+IG copy, file exists + size; `post --clip 0` dry-run shows per-platform payloads: YT title+description (+tags from hashtags, privacy/category), IG caption + container→publish flow + tunnel plan, Bilibili title/desc/tags/tid 21/cover/original |
+| 2026-08-30 | **Uploader fail-loud + safety gate** | ✅ `post --clip 0 --post --yes` with no credentials configured: all 3 platforms refuse with exact one-time setup instructions (no partial upload, no secrets touched), attempt recorded in `uploader/credentials/ledger.json`, exit code 1; `--clip 9` rejected (`must be 0..4`); `check` exit 1 with per-platform guidance |
+| 2026-08-30 | **Instagram public-URL prerequisite** | ✅ backend's `/videos/<job>/<file>.mp4` mount verified live over HTTP with range requests (HTTP 206, correct bytes) — that's the URL Meta's Reels fetcher consumes via the auto quick-tunnel |
+| (user-side) | Uploader first real post to all 3 platforms | needs one-time credentials only the user can create: YouTube OAuth (`login --platform youtube` after client_secrets.json), Meta app + long-lived IG token in `.env`, Bilibili cookies in `.env` (exact steps printed by `uploader.bat check`, documented in README) — then `uploader.bat post --job <id> --clip <N> --post` |
 | (pending) | 24 h analytics pull into `analytics_log.csv` (Phase 9) | after the first posts accrue views — `/api/social/analytics*` endpoints are live; `posts\` copies make per-clip matching easy |

@@ -21,15 +21,22 @@ smoke-test (`2ApLx29sKxM`) also completed. The original IShowSpeed test URL
 (`miGclAow9KI`) is age-restricted by YouTube and still needs cookies — see
 below.**
 
+**Update 2026-08-30 (later):** posting is **self-hosted now** — the new
+`uploader\` tool posts each clip straight to **YouTube, Instagram and
+Bilibili** (the platform Upload-Post never supported) with **no monthly
+cap**: `uploader.bat post --job <id> --clip <N> --post`. One-time
+credentials per platform (README section below). Dry-run by default, same
+human gate as always. The Upload-Post path (`post-clip.bat`) stays wired as
+a paid-tier fallback.
+
 **Update 2026-08-30:** the *verified viral format* profile is wired and
 one-command (`viral-clip.bat <url>` — hook overlay, 15–34 s band, punch-ins,
 auto layouts, loop-aware scoring prompts; see **PLAN.md** for the format
-spec + verification log). **Posting is LIVE**: the Upload-Post key is set,
-profile `Wybe` has YouTube + Instagram connected, and the first clip is
-already published (two more scheduled). Target set: YT + IG auto-post,
-Bilibili manual (Upload-Post doesn't support it). Note the **free-tier cap:
-10 uploads/month** — pace ~1 clip/day or upgrade for unlimited. Every
-successful post also saves a clean-named copy to `posts\`.
+spec + verification log). **Posting went LIVE via Upload-Post**: the first
+clip is already published (two more scheduled). That free tier capped at
+**10 uploads/month** and had no Bilibili — which is exactly why the
+self-hosted `uploader\` above exists now. Every successful post also saves a
+clean-named copy to `posts\`.
 
 ## Test source URL
 
@@ -44,8 +51,8 @@ https://www.youtube.com/watch?v=miGclAow9KI   # "REACTING TO THE NEW GTA 6 TRAIL
 | Core engine | OpenShorts — self-hosted Docker, MIT core (no openshorts.app cloud tier) |
 | Bundled inside it | yt-dlp, faster-whisper, YOLOv8, mediapipe, FFmpeg, google-genai |
 | AI moment scoring | Gemini `gemini-2.5-flash-lite` (free tier) — the only paid dependency |
-| Publishing | OpenShorts' built-in Upload-Post integration (Postiz deliberately NOT used — redundant) |
-| Review gate | OpenShorts' own review UI — nothing schedules without explicit approval |
+| Publishing | **Self-hosted `uploader\`** — official YouTube Data API v3 + official Meta Graph API (Reels) + `bilibili-api-python`, no monthly cap. Upload-Post kept as a paid-tier fallback |
+| Review gate | Dry-run-by-default posting CLI — nothing uploads without an explicit `--post` + `--clip` |
 
 ## Built on OpenShorts — attribution & what we changed
 
@@ -66,7 +73,8 @@ captions → review queue → Upload-Post publishing. The engine lives in
 | **Loop-aware scoring prompts** — `LOOP RULE` (end within ~1 s of the payoff, trim dead air) + rewatch as a scoring criterion | `openshorts/gemini_worker.py` | Clips follow the verified viral structure (hook → payoff → seamless loop) instead of trailing off |
 | **One-command viral format** (`viral-job.ps1` / `viral-clip.bat`): burned hook overlay, 15–34 s band, punch-ins, auto layouts, per-job controls | `scripts/`, `*.bat` | The 2026 retention levers are applied per job by default, not hidden behind config |
 | **Posting workflow with a hard human gate**: dry-run listing by default, `-Yes` for scripted runs, scheduled posts, clean-named `posts\` export of everything actually posted | `scripts/post-clip.ps1` | Safe to keep logged in; clip files become findable (`2026-08-30_gta-6-every-confirmed-mini-game-so-far_85.mp4`) |
-| **Target platform set**: YouTube + Instagram auto-post, Bilibili manual, TikTok dropped | `scripts/`, PLAN.md | Matches the actual channel plan; Upload-Post's limits (10 uploads/mo free) paced into the cadence |
+| **Target platform set**: YouTube + Instagram + Bilibili auto-post, TikTok dropped | `scripts/`, `uploader/`, PLAN.md | Matches the actual channel plan |
+| **Self-hosted unlimited posting** (`uploader\` package + `uploader.bat`): official YouTube Data API v3 (OAuth), official Meta Graph API Reels publish (auto Cloudflare quick-tunnel for the public video URL), bilibili-api-python cookie uploads — replaces the Upload-Post 10/month cap and automates Bilibili | `uploader/`, `uploader.bat` | No vendor cap, no third party in the loop; same human gate (dry-run default, `--post` + specific `--clip`); append-only JSON ledger of every attempt |
 
 Everything else — transcription, face tracking, caption rendering, layout
 engines — is upstream OpenShorts, unchanged. Patches are documented in
@@ -76,12 +84,15 @@ pulling upstream updates.
 ## Layout
 
 ```
-.env            real keys (gitignored): GEMINI_API_KEY, UPLOAD_POST_API_KEY
+.env            real keys (gitignored): GEMINI_API_KEY, UPLOAD_POST_API_KEY,
+                IG_ACCESS_TOKEN, BILI_SESSDATA, ... (uploader keys too)
 .env.example    documented template — copy to .env
 openshorts/     the engine itself (cloned from mutonby/openshorts; has its own git history)
+uploader/       self-hosted posting legs: YouTube API / IG Graph API / Bilibili (own venv)
+uploader.bat    the unlimited multi-platform posting CLI (dry-run by default)
 PLAN.md         the further plan: verified viral format spec, posting cadence, phases
 scripts/        PowerShell tooling (viral-job / post-clip / check-social)
-*.bat           double-click wrappers: start/stop, viral-clip, post-clip, check-social
+*.bat           double-click wrappers: start/stop, viral-clip, uploader, post-clip, check-social
 README.md       this file
 ```
 
@@ -159,22 +170,69 @@ unwired until clip quality is explicitly approved.**
 The full plan lives in **[PLAN.md](PLAN.md)** — what is *verified* to pull
 views in 2026, how each lever is wired into the pipeline, the posting
 cadence, and the retention feedback loop. Day-to-day you only need three
-double-clickable scripts (all `scripts/*.ps1` under the hood):
+double-clickable scripts (all `scripts/*.ps1` / `uploader/` under the hood):
 
 | Command | What it does |
 |---|---|
 | `viral-clip.bat <url>` | Submits any video/stream link through the **verified viral format profile**: burned hook overlay (`outline` style, top), 15–34 s clips (retention sweet spot), audio-beat punch-ins, Gemini auto layout picker + speaker cuts/split, karaoke captions (default), loop-aware/no-dead-air scoring prompts. Polls until done, then prints every clip's score, hook, title and file. Source downloads cap at 720p by default (root `.env` `MAX_SOURCE_HEIGHT=720`, the fix for the Twitch 1080p60 stall) — finished clips still deliver 1080×1920; add `-MaxSourceHeight 1080` for a full-quality source on one job. |
-| `post-clip.bat <job_id>` | **Dry-run by default** — lists the job's clips with score/hook/per-platform copy. Add `-ClipIndex N -Post -Profile <upload-post-profile>` (optionally `-ScheduledDate "YYYY-MM-DDTHH:mm:ss" -Timezone "<tz>"`) to actually post/schedule via Upload-Post. Requires a connected account (below). |
-| `check-social.bat` | Read-only check of the Upload-Post key: shows your profile name and which platforms (IG/YT) are connected. |
+| `uploader.bat` | **The default posting leg — unlimited, all platforms including Bilibili.** Dry-run by default: `uploader.bat list --job <id>` shows every clip with score/hook/copy; `uploader.bat post --job <id> --clip <N>` dry-runs the exact payloads; append `--post` (+ `--yes` for scripted runs) to actually upload to YouTube + Instagram + Bilibili (or `--platforms youtube,bilibili` to narrow). `uploader.bat check` validates credentials per platform; `uploader.bat doctor` checks the environment. Setup below. |
+| `post-clip.bat <job_id>` | **Fallback posting via Upload-Post** (paid tier if you want it) — dry-run by default, `-ClipIndex N -Post -Profile Wybe` posts/schedules to YT + IG only. |
+| `check-social.bat` | Read-only check of the Upload-Post key (fallback leg's status). |
 
-**Posting prerequisites (one-time, user-side) — DONE 2026-08-30:**
-1. ~~Get an API key~~ key is set in the root `.env`.
-2. ~~Connect accounts~~ profile `Wybe` has YouTube + Instagram connected.
-3. `check-social.bat` confirms the key + platforms anytime.
+### Self-hosted uploader — why and how it works
 
-The root `.env` is loaded into the backend container (docker-compose
-`env_file` includes `../.env` as of 2026-08-30), so the same file is the
-single source of truth for the API and the scripts.
+No open-source scheduler covers all three platforms (verified 2026-08-30:
+[Postiz](https://github.com/gitroomhq/postiz-app) has no Bilibili, and
+Upload-Post neither — its 22 platforms stop at YouTube/IG/TikTok), and the
+Upload-Post free tier caps at 10 uploads/month. So the posting leg is a small
+self-hosted orchestrator (`uploader/`, ~600 lines of Python in its own venv)
+composing the strongest open-source/official client per platform:
+
+| Platform | Client | Auth | Cap |
+|---|---|---|---|
+| YouTube | **Official Data API v3** (`google-api-python-client`, resumable upload) | OAuth desktop flow → `uploader/credentials/youtube_token.json` | Free quota ≥ ~6 uploads/day (10,000 units/day; `videos.insert` = 1,600 units, reported ~100 since Dec 2025) |
+| Instagram | **Official Meta Graph API** Reels publish (container → poll → `media_publish`) | Long-lived IG access token in `.env` | No cap; needs a public video URL → the backend's `/videos` path is exposed through a free Cloudflare quick-tunnel automatically (or set `IG_PUBLIC_BASE_URL`) |
+| Bilibili | **`bilibili-api-python`** `video_uploader` (open source, actively maintained 2026) | Browser cookies (`SESSDATA`/`bili_jct`/`buvid3`) in `.env` | No official cap; keep the 2/day cadence to stay friendly to risk control |
+
+Why not [instagrapi](https://github.com/subzeroid/instagrapi) for Instagram?
+Its own repo states Reels uploads are **no longer maintained** (Meta
+restricted the project) — the official Graph API is the stable path. Why not
+Postiz self-hosted? It's a whole scheduling platform (Redis + Postgres) that
+still requires a Meta app for IG and still has no Bilibili.
+
+Every real upload is recorded in `uploader/credentials/ledger.json`
+(gitignored) — timestamp, job, clip, per-platform result/URL — and a
+clean-named copy lands in `posts\` like the Upload-Post flow.
+
+### Uploader one-time setup (per platform)
+
+0. `uploader\setup-deps.bat` — creates the venv + installs the three client
+   libraries (once). `uploader.bat doctor` confirms the environment.
+1. **YouTube** — Google Cloud Console: create a project → enable *YouTube
+   Data API v3* → *OAuth client ID* → type *Desktop app* → download JSON →
+   save as `uploader\credentials\client_secrets.json` → run
+   `uploader.bat login --platform youtube` (browser consent, once). Quota
+   note: a fresh unverified project starts at 10,000 units/day.
+2. **Instagram** — the IG account must be a free *Business/Creator* account.
+   At developers.facebook.com create an app (*Business* type), add the
+   *Instagram Graph API* product, then in Graph API Explorer generate a token
+   with `instagram_basic`, `instagram_content_publish`, `pages_show_list`.
+   Exchange it for a long-lived token and put both values in the root `.env`:
+   `IG_ACCESS_TOKEN=<long-lived>` + `IG_USER_ID=<ig account id>`. The
+   long-lived exchange (60-day validity, re-run the curl to refresh):
+   `curl -G "https://graph.facebook.com/v23.0/oauth/access_token" --data-urlencode "grant_type=fb_exchange_token" --data-urlencode "client_id=<APP_ID>" --data-urlencode "client_secret=<APP_SECRET>" --data-urlencode "fb_exchange_token=<short-lived token>"`
+   Also install `cloudflared` (`winget install Cloudflare.cloudflared`) or set
+   `IG_PUBLIC_BASE_URL` — Reels publishing requires a public video URL and the
+   backend's `/videos` mount is localhost-only until tunneled.
+3. **Bilibili** — log into bilibili.com, DevTools (F12) → Application →
+   Cookies → bilibili.com, and copy `SESSDATA`, `bili_jct`, `buvid3` into the
+   root `.env` as `BILI_SESSDATA` / `BILI_JCT` / `BILI_BUVID3` (cookies
+   expire — re-export when `uploader.bat check` fails). Optional: `BILI_TID`
+   (upload zone), `BILI_TAGS`, `BILI_ORIGINAL`.
+
+`uploader.bat check` after each step tells you exactly what's still missing.
+**Posting safety is unchanged:** the uploader dry-runs by default and a real
+post needs `--post` plus a specific `--clip` index (AGENTS.md human gate).
 
 ## Phase map (all inside OpenShorts — zero custom code)
 
@@ -183,21 +241,30 @@ single source of truth for the API and the scripts.
 3. **Transcription + moment detection** — faster-whisper + Gemini scoring run automatically; output is ranked candidates with timestamps + reasoning.
 4. **Clip generation** — automatic 9:16 face-tracked crop (YOLOv8/mediapipe), burned captions, multi-speaker layout switching; MP4s land in the review queue.
 5. **Human review gate** — approve/reject/edit in OpenShorts' review interface. **Nothing auto-posts without explicit approval for the first several batches.**
-6. **Scheduling/publishing** — via `post-clip.bat <job_id> -ClipIndex N -Post ...` (Upload-Post): 2 clips/day across YouTube Shorts / IG Reels (Bilibili uploaded manually), 14-day rolling calendar. **Still gated: needs the review pass + a real UPLOAD_POST_API_KEY + connected accounts.**
+6. **Publishing** — `uploader.bat post --job <id> --clip N --post`: one command posts the clip to **YouTube Shorts + Instagram Reels + Bilibili** (no vendor, no monthly cap). Cadence plan stays 2 clips/day, spaced (12:30 / 19:30) — never batch-dump. Upload-Post (`post-clip.bat`) remains as the paid-tier fallback for YT+IG. **Still gated: the review pass + explicit `--post` + specific `--clip`.**
 7. **Weekly review loop** — pull analytics via OpenShorts/Upload-Post, log top source videos + clip types to a CSV for manual review. No auto-scaling decisions.
 
 ## Constraints (enforced)
 
 - Self-hosted only, Docker on this machine — no OpenShorts cloud tier.
-- No hardcoded keys — `.env` only; missing required keys fail loudly.
+- No hardcoded keys — `.env` only; missing required keys fail loudly
+  (uploader platforms refuse with setup instructions until configured).
 - Every phase is confirmed working before the next one starts.
-- Publishing stays disconnected until the human gate approves clip quality.
+- Both posting legs are dry-run by default: `uploader.bat post` needs
+  `--post` + a specific `--clip`; `post-clip.ps1` needs `-Post` +
+  `-ClipIndex`. Nothing uploads without those.
 
 ## ToS / legal flags (kept visible on purpose)
 
 - **Downloading YouTube videos** (yt-dlp) violates YouTube's ToS outside
   permitted offline modes. Low practical risk for private testing; not
   risk-free at scale.
+- **The uploader's own legs are above-board**: YouTube via the official Data
+  API (OAuth), Instagram via the official Graph API (Reels publish), Bilibili
+  via a session-cookie upload — the cookie route is the same category of
+  automation the platform tolerates for its own creators' tooling (biliup is
+  widely used by Bilibili streamers), but it is still unofficial: keep the
+  2/day cadence, never bulk-dump, and expect cookie expiry.
 - **Reposting GTA 6 trailers / streamer reactions** you don't own is the
   biggest real risk of this project: copyright strikes and channel bans on
   YT/IG/Bilibili. Faceless reposting of others' footage (e.g. the IShowSpeed

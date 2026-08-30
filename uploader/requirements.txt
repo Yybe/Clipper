@@ -1,0 +1,5 @@
+# Clipper Uploader - self-hosted posting legs (no Upload-Post, no 10/month cap)
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.1
+requests>=2.31
+bilibili-api-python>=17.1

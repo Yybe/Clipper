@@ -1,6 +1,7 @@
 # Secrets
 .env
 cookies.txt
+uploader/credentials/
 
 # OpenShorts runtime artifacts (media, models, job outputs)
 openshorts/output/
