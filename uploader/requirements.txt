@@ -3,3 +3,6 @@ google-api-python-client>=2.100
 google-auth-oauthlib>=1.1
 requests>=2.31
 bilibili-api-python>=17.1
+# bilibili-api-python v17+ requires a third-party HTTP client (curl_cffi
+# recommended; httpx / aiohttp also work). curl_cffi is the default.
+curl_cffi>=0.13
