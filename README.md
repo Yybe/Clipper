@@ -3,8 +3,8 @@
 Self-hosted, end-to-end pipeline built on **OpenShorts** (`mutonby/openshorts`,
 MIT core): long video in → transcribed → AI highlight detection → 9:16
 face-tracked crop → burned captions → **human review gate** → scheduled
-publishing to **YouTube Shorts / Instagram Reels** (Upload-Post API) and
-**Bilibili** (manual upload — Upload-Post doesn't support it).
+publishing to **YouTube Shorts / Instagram Reels / Facebook Reels / TikTok / Bilibili**
+(self-hosted `uploader/` — no vendor cap; Upload-Post kept as a fallback).
 
 Test niche: **GTA 6 hype content**. The pipeline is niche-agnostic — the same
 setup works for any long-form source after the niche is validated.
@@ -22,8 +22,8 @@ smoke-test (`2ApLx29sKxM`) also completed. The original IShowSpeed test URL
 below.**
 
 **Update 2026-08-30 (later):** posting is **self-hosted now** — the new
-`uploader\` tool posts each clip straight to **YouTube, Instagram and
-Bilibili** (the platform Upload-Post never supported) with **no monthly
+`uploader\` tool posts each clip straight to **YouTube, Instagram, Bilibili,
+Facebook and TikTok** (Facebook + TikTok added 2026-09-03) with **no monthly
 cap**: `uploader.bat post --job <id> --clip <N> --post`. One-time
 credentials per platform (README section below). Dry-run by default, same
 human gate as always. The Upload-Post path (`post-clip.bat`) stays wired as
@@ -51,7 +51,7 @@ https://www.youtube.com/watch?v=miGclAow9KI   # "REACTING TO THE NEW GTA 6 TRAIL
 | Core engine | OpenShorts — self-hosted Docker, MIT core (no openshorts.app cloud tier) |
 | Bundled inside it | yt-dlp, faster-whisper, YOLOv8, mediapipe, FFmpeg, google-genai |
 | AI moment scoring | Gemini `gemini-2.5-flash-lite` (free tier) — the only paid dependency |
-| Publishing | **Self-hosted `uploader\`** — official YouTube Data API v3 + official Meta Graph API (Reels) + `bilibili-api-python`, no monthly cap. Upload-Post kept as a paid-tier fallback |
+| Publishing | **Self-hosted `uploader\`** — official YouTube Data API v3 + official Meta Graph API (IG Reels + FB Page video) + TikTok Content Posting API + `bilibili-api-python`, no monthly cap. Upload-Post kept as a paid-tier fallback |
 | Review gate | Dry-run-by-default posting CLI — nothing uploads without an explicit `--post` + `--clip` |
 
 ## Built on OpenShorts — attribution & what we changed
@@ -73,8 +73,8 @@ captions → review queue → Upload-Post publishing. The engine lives in
 | **Loop-aware scoring prompts** — `LOOP RULE` (end within ~1 s of the payoff, trim dead air) + rewatch as a scoring criterion | `openshorts/gemini_worker.py` | Clips follow the verified viral structure (hook → payoff → seamless loop) instead of trailing off |
 | **One-command viral format** (`viral-job.ps1` / `viral-clip.bat`): burned hook overlay, 15–34 s band, punch-ins, auto layouts, per-job controls | `scripts/`, `*.bat` | The 2026 retention levers are applied per job by default, not hidden behind config |
 | **Posting workflow with a hard human gate**: dry-run listing by default, `-Yes` for scripted runs, scheduled posts, clean-named `posts\` export of everything actually posted | `scripts/post-clip.ps1` | Safe to keep logged in; clip files become findable (`2026-08-30_gta-6-every-confirmed-mini-game-so-far_85.mp4`) |
-| **Target platform set**: YouTube + Instagram + Bilibili auto-post, TikTok dropped | `scripts/`, `uploader/`, PLAN.md | Matches the actual channel plan |
-| **Self-hosted unlimited posting** (`uploader\` package + `uploader.bat`): official YouTube Data API v3 (OAuth), official Meta Graph API Reels publish (auto Cloudflare quick-tunnel for the public video URL), bilibili-api-python cookie uploads — replaces the Upload-Post 10/month cap and automates Bilibili | `uploader/`, `uploader.bat` | No vendor cap, no third party in the loop; same human gate (dry-run default, `--post` + specific `--clip`); append-only JSON ledger of every attempt |
+| **Target platform set**: YouTube + Instagram + Bilibili + Facebook + TikTok auto-post (all self-hosted) | `scripts/`, `uploader/`, PLAN.md | All five via `uploader/` — TikTok restored via official Content Posting API |
+| **Self-hosted unlimited posting** (`uploader\` package + `uploader.bat`): official YouTube Data API v3 (OAuth), official Meta Graph API (IG Reels + FB Page video, auto quick-tunnel), TikTok Content Posting API (PULL_FROM_URL + FILE_UPLOAD), bilibili-api-python cookie uploads — replaces the Upload-Post 10/month cap and automates Bilibili/Facebook/TikTok | `uploader/`, `uploader.bat` | No vendor cap, no third party in the loop; same human gate (dry-run default, `--post` + specific `--clip`); append-only JSON ledger of every attempt |
 
 Everything else — transcription, face tracking, caption rendering, layout
 engines — is upstream OpenShorts, unchanged. Patches are documented in
@@ -88,8 +88,8 @@ pulling upstream updates.
                 IG_ACCESS_TOKEN, BILI_SESSDATA, ... (uploader keys too)
 .env.example    documented template — copy to .env
 openshorts/     the engine itself (cloned from mutonby/openshorts; has its own git history)
-uploader/       self-hosted posting legs: YouTube API / IG Graph API / Bilibili (own venv)
-uploader.bat    the unlimited multi-platform posting CLI (dry-run by default)
+uploader/       self-hosted posting legs: YouTube API / IG+FB Graph API / TikTok API / Bilibili (own venv)
+uploader.bat    the unlimited multi-platform posting CLI (dry-run by default, 5 platforms)
 PLAN.md         the further plan: verified viral format spec, posting cadence, phases
 scripts/        PowerShell tooling (viral-job / post-clip / check-social)
 *.bat           double-click wrappers: start/stop, viral-clip, uploader, post-clip, check-social
@@ -175,26 +175,28 @@ double-clickable scripts (all `scripts/*.ps1` / `uploader/` under the hood):
 | Command | What it does |
 |---|---|
 | `viral-clip.bat <url>` | Submits any video/stream link through the **verified viral format profile**: burned hook overlay (`outline` style, top), 15–34 s clips (retention sweet spot), audio-beat punch-ins, Gemini auto layout picker + speaker cuts/split, karaoke captions (default), loop-aware/no-dead-air scoring prompts. Polls until done, then prints every clip's score, hook, title and file. Source downloads cap at 720p by default (root `.env` `MAX_SOURCE_HEIGHT=720`, the fix for the Twitch 1080p60 stall) — finished clips still deliver 1080×1920; add `-MaxSourceHeight 1080` for a full-quality source on one job. |
-| `uploader.bat` | **The default posting leg — unlimited, all platforms including Bilibili.** Dry-run by default: `uploader.bat list --job <id>` shows every clip with score/hook/copy; `uploader.bat post --job <id> --clip <N>` dry-runs the exact payloads; append `--post` (+ `--yes` for scripted runs) to actually upload to YouTube + Instagram + Bilibili (or `--platforms youtube,bilibili` to narrow). `uploader.bat check` validates credentials per platform; `uploader.bat doctor` checks the environment. Setup below. |
+| `uploader.bat` | **The default posting leg — unlimited, all 5 platforms.** Dry-run by default: `uploader.bat list --job <id>` shows every clip with score/hook/copy; `uploader.bat post --job <id> --clip <N>` dry-runs the exact payloads; append `--post` (+ `--yes` for scripted runs) to actually upload to YouTube + Instagram + Bilibili + Facebook + TikTok (or `--platforms youtube,bilibili` to narrow). `uploader.bat check` validates credentials per platform; `uploader.bat doctor` checks the environment. Setup below. |
 | `post-clip.bat <job_id>` | **Fallback posting via Upload-Post** (paid tier if you want it) — dry-run by default, `-ClipIndex N -Post -Profile Wybe` posts/schedules to YT + IG only. |
 | `check-social.bat` | Read-only check of the Upload-Post key (fallback leg's status). |
 
 ### Self-hosted uploader — why and how it works
 
-No open-source scheduler covers all three platforms (verified 2026-08-30:
+No open-source scheduler covers all five platforms (verified 2026-08-30:
 [Postiz](https://github.com/gitroomhq/postiz-app) has no Bilibili, and
 Upload-Post neither — its 22 platforms stop at YouTube/IG/TikTok), and the
 Upload-Post free tier caps at 10 uploads/month. So the posting leg is a small
-self-hosted orchestrator (`uploader/`, ~600 lines of Python in its own venv)
+self-hosted orchestrator (`uploader/`, ~900 lines of Python in its own venv)
 composing the strongest open-source/official client per platform:
 
 | Platform | Client | Auth | Cap |
 |---|---|---|---|
 | YouTube | **Official Data API v3** (`google-api-python-client`, resumable upload) | OAuth desktop flow → `uploader/credentials/youtube_token.json` | Free quota ≥ ~6 uploads/day (10,000 units/day; `videos.insert` = 1,600 units, reported ~100 since Dec 2025) |
 | Instagram | **Official Meta Graph API** Reels publish (container → poll → `media_publish`) | Long-lived IG access token in `.env` | No cap; needs a public video URL → the backend's `/videos` path is exposed through a free Cloudflare quick-tunnel automatically (or set `IG_PUBLIC_BASE_URL`) |
+| Facebook | **Official Meta Graph API** Page video (`/{page-id}/videos`, direct file upload) | Page access token (`FB_PAGE_ID` + `FB_PAGE_ACCESS_TOKEN` in `.env`, same app as Instagram) | No cap; no tunnel needed (file POSTed directly) |
+| TikTok | **Official Content Posting API** (`open.tiktokapis.com`, PULL_FROM_URL + FILE_UPLOAD) | OAuth `video_publish` + `video_upload` → `TIKTOK_ACCESS_TOKEN`/`TIKTOK_OPEN_ID` in `.env` | No cap; PULL needs a public URL (auto tunnel), FILE_UPLOAD always works (chunked PUT) |
 | Bilibili | **`bilibili-api-python`** `video_uploader` (open source, actively maintained 2026) | Browser cookies (`SESSDATA`/`bili_jct`/`buvid3`) in `.env` | No official cap; keep the 2/day cadence to stay friendly to risk control |
 
-Why not [instagrapi](https://github.com/subzeroid/instagrapi) for Instagram?
+Why not [instagrapi](https://github.com/subzeroid/instagrapi) for Instagram? Why not a TikTok scraper?
 Its own repo states Reels uploads are **no longer maintained** (Meta
 restricted the project) — the official Graph API is the stable path. Why not
 Postiz self-hosted? It's a whole scheduling platform (Redis + Postgres) that
@@ -206,7 +208,7 @@ clean-named copy lands in `posts\` like the Upload-Post flow.
 
 ### Uploader one-time setup (per platform)
 
-0. `uploader\setup-deps.bat` — creates the venv + installs the three client
+0. `uploader\setup-deps.bat` — creates the venv + installs the client
    libraries (once). `uploader.bat doctor` confirms the environment.
 1. **YouTube** — Google Cloud Console: create a project → enable *YouTube
    Data API v3* → *OAuth client ID* → type *Desktop app* → download JSON →
@@ -229,6 +231,21 @@ clean-named copy lands in `posts\` like the Upload-Post flow.
    root `.env` as `BILI_SESSDATA` / `BILI_JCT` / `BILI_BUVID3` (cookies
    expire — re-export when `uploader.bat check` fails). Optional: `BILI_TID`
    (upload zone), `BILI_TAGS`, `BILI_ORIGINAL`.
+4. **Facebook** — same Meta app as Instagram: link a Facebook Page to the
+   app, then in Graph API Explorer select that Page → generate a Page token
+   with `pages_show_list` + `pages_read_engagement` + `publish_video` +
+   `pages_manage_posts`. Put `FB_PAGE_ID=<page id>` and
+   `FB_PAGE_ACCESS_TOKEN=<page token>` in `.env` (`FB_ACCESS_TOKEN` is an
+   alias). Direct file upload — no tunnel needed.
+5. **TikTok** — at developers.tiktok.com create an app → add *Content
+   Posting API* + *Login Kit* → set a redirect URI → complete App review
+   (sandbox works before approval). OAuth: authorize the TikTok account
+   (`video_publish,video_upload` scopes), exchange the `code` for tokens
+   (`POST https://open.tiktokapis.com/v2/oauth/token/`), and put
+   `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_ACCESS_TOKEN`,
+   `TIKTOK_REFRESH_TOKEN`, `TIKTOK_OPEN_ID` in `.env`. PULL_FROM_URL needs
+   a public URL (auto tunnel or `TIKTOK_PUBLIC_BASE_URL`); FILE_UPLOAD
+   always works.
 
 `uploader.bat check` after each step tells you exactly what's still missing.
 **Posting safety is unchanged:** the uploader dry-runs by default and a real
@@ -241,7 +258,7 @@ post needs `--post` plus a specific `--clip` index (AGENTS.md human gate).
 3. **Transcription + moment detection** — faster-whisper + Gemini scoring run automatically; output is ranked candidates with timestamps + reasoning.
 4. **Clip generation** — automatic 9:16 face-tracked crop (YOLOv8/mediapipe), burned captions, multi-speaker layout switching; MP4s land in the review queue.
 5. **Human review gate** — approve/reject/edit in OpenShorts' review interface. **Nothing auto-posts without explicit approval for the first several batches.**
-6. **Publishing** — `uploader.bat post --job <id> --clip N --post`: one command posts the clip to **YouTube Shorts + Instagram Reels + Bilibili** (no vendor, no monthly cap). Cadence plan stays 2 clips/day, spaced (12:30 / 19:30) — never batch-dump. Upload-Post (`post-clip.bat`) remains as the paid-tier fallback for YT+IG. **Still gated: the review pass + explicit `--post` + specific `--clip`.**
+6. **Publishing** — `uploader.bat post --job <id> --clip N --post`: one command posts the clip to **YouTube Shorts + Instagram Reels + Facebook Reels + TikTok + Bilibili** (no vendor, no monthly cap). Use `--platforms youtube,tiktok` to narrow. Cadence plan stays 2 clips/day, spaced (12:30 / 19:30) — never batch-dump. Upload-Post (`post-clip.bat`) remains as the paid-tier fallback for YT+IG. **Still gated: the review pass + explicit `--post` + specific `--clip`.**
 7. **Weekly review loop** — pull analytics via OpenShorts/Upload-Post, log top source videos + clip types to a CSV for manual review. No auto-scaling decisions.
 
 ## Constraints (enforced)
@@ -260,14 +277,16 @@ post needs `--post` plus a specific `--clip` index (AGENTS.md human gate).
   permitted offline modes. Low practical risk for private testing; not
   risk-free at scale.
 - **The uploader's own legs are above-board**: YouTube via the official Data
-  API (OAuth), Instagram via the official Graph API (Reels publish), Bilibili
+  API (OAuth), Instagram via the official Graph API (Reels publish), Facebook
+  via the official Graph API (Page video), TikTok via the official Content
+  Posting API, Bilibili
   via a session-cookie upload — the cookie route is the same category of
   automation the platform tolerates for its own creators' tooling (biliup is
   widely used by Bilibili streamers), but it is still unofficial: keep the
   2/day cadence, never bulk-dump, and expect cookie expiry.
 - **Reposting GTA 6 trailers / streamer reactions** you don't own is the
   biggest real risk of this project: copyright strikes and channel bans on
-  YT/IG/Bilibili. Faceless reposting of others' footage (e.g. the IShowSpeed
+  YT/IG/FB/TikTok/Bilibili. Faceless reposting of others' footage (e.g. the IShowSpeed
   test video) without transformation or permission is exactly what gets
   channels terminated. Before anything publishes: budget for transformative
   commentary, or use owned/licensed footage. Flagged per spec — not silently

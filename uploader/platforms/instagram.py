@@ -14,61 +14,13 @@ Instagram API product added, long-lived access token -> .env:
 (Steps in README "Instagram setup".)
 """
 
-import re
 import shutil
-import subprocess
 import time
-import urllib.parse
-import urllib.request
 
 import requests
 
+from ..tunnel import QuickTunnel
 from .base import CheckLine, ClipPayload, PlatformAdapter, SetupError, UploadResult
-
-CREATE_NO_WINDOW = 0x08000000  # keep cloudflared quiet on Windows
-
-
-class QuickTunnel:
-    """A temporary free Cloudflare tunnel exposing the OpenShorts backend."""
-
-    def __init__(self, binary: str, target: str):
-        self.binary = binary
-        self.target = target
-        self.proc = None
-        self.base_url = ""
-
-    def start(self, timeout: float = 45.0) -> str:
-        self.proc = subprocess.Popen(
-            [self.binary, "tunnel", "--url", self.target, "--no-autoupdate"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=CREATE_NO_WINDOW,
-        )
-        deadline = time.time() + timeout
-        while time.time() < deadline and self.proc.poll() is None:
-            line = self.proc.stdout.readline()
-            match = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line or "")
-            if match:
-                self.base_url = match.group(0)
-                return self.base_url
-        self.stop()
-        raise SetupError(
-            "Could not start a Cloudflare quick tunnel (is 'cloudflared' installed and on PATH? "
-            "`winget install Cloudflare.cloudflared`, or set IG_CLOUDFLARED_PATH). "
-            "Alternatively set IG_PUBLIC_BASE_URL to your own public tunnel/domain."
-        )
-
-    def stop(self):
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-        self.proc = None
 
 
 class InstagramAdapter(PlatformAdapter):

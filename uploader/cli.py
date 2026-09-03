@@ -6,7 +6,7 @@ import sys
 from .config import Config, setup_console
 from .engine import run_check, run_doctor, run_list, run_post
 
-ALL_PLATFORMS = ["youtube", "instagram", "bilibili"]
+ALL_PLATFORMS = ["youtube", "instagram", "bilibili", "facebook", "tiktok"]
 
 
 def _platforms_arg(raw: str) -> list:
@@ -21,7 +21,7 @@ def main(argv=None) -> int:
     setup_console()
     parser = argparse.ArgumentParser(
         prog="uploader",
-        description="Clipper self-hosted multi-platform poster (YouTube / Instagram / Bilibili) - dry-run by default.",
+        description="Clipper self-hosted multi-platform poster (YouTube / Instagram / Bilibili / Facebook / TikTok) - dry-run by default.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -31,7 +31,7 @@ def main(argv=None) -> int:
     p_post = sub.add_parser("post", help="dry-run a clip's payloads; add --post to really upload")
     p_post.add_argument("--job", required=True)
     p_post.add_argument("--clip", type=int, default=-1, help="clip index (required for a real post)")
-    p_post.add_argument("--platforms", default="", help="comma list, default: POST_PLATFORMS env or all three")
+    p_post.add_argument("--platforms", default="", help="comma list, default: POST_PLATFORMS env or all five (youtube,instagram,bilibili,facebook,tiktok)")
     p_post.add_argument("--title", default="", help="override title (YT/Bilibili)")
     p_post.add_argument("--desc", default="", help="override description/caption")
     p_post.add_argument("--tags", default="", help="comma list; overrides platform defaults")

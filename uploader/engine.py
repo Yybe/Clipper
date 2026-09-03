@@ -33,6 +33,8 @@ def build_payloads(cfg: Config, job_id: str, clip: Clip, platforms: list, title:
     cli_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
     yt_tags = cli_tags or _yt_hashtags(body_desc) or ["shorts"]
     bili_tags = cli_tags or [t.strip() for t in cfg.bili_tags.split(",") if t.strip()] or ["daily"]
+    # TikTok caption: prefer desc override else the Instagram/TikTok copy
+    tiktok_caption = desc or clip.tiktok_desc or clip.ig_desc or body_desc
 
     for name in platforms:
         common = dict(
@@ -49,6 +51,12 @@ def build_payloads(cfg: Config, job_id: str, clip: Clip, platforms: list, title:
             payloads[name] = dict(platform=name, title="", description=ig_caption, tags=[], **common)
         elif name == "bilibili":
             payloads[name] = dict(platform=name, title=bili_title, description=bili_desc, tags=bili_tags, **common)
+        elif name == "facebook":
+            # FB Page video uses title + description (same as YT but without hashtag suffix)
+            fb_title = (title or clip.yt_title or (clip.hook[:80] if clip.hook else "Viral Short")).strip()
+            payloads[name] = dict(platform=name, title=fb_title, description=body_desc, tags=[], **common)
+        elif name == "tiktok":
+            payloads[name] = dict(platform=name, title=tiktok_caption[:150], description=tiktok_caption, tags=cli_tags or yt_tags, **common)
     return payloads
 
 
@@ -99,7 +107,7 @@ def run_doctor(cfg: Config) -> int:
     deps = {
         "googleapiclient": "youtube",
         "google_auth_oauthlib": "youtube",
-        "requests": "instagram",
+        "requests": "instagram/facebook/tiktok",
         "bilibili_api": "bilibili",
     }
     for module, needed_by in deps.items():
@@ -117,13 +125,15 @@ def run_doctor(cfg: Config) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"  MISS OpenShorts backend ({exc}) -> start.bat")
 
-    for tool, why in (("ffmpeg", "bilibili auto-cover"), ("cloudflared", "instagram quick-tunnel")):
+    for tool, why in (("ffmpeg", "bilibili auto-cover"), ("cloudflared", "instagram/tiktok quick-tunnel")):
         found = shutil.which(tool)
         print(f"  {'OK  ' if found else 'MISS'} tool: {tool} ({why})")
 
     print(f"  youtube client_secrets: {cfg.yt_client_secrets} {'(present)' if cfg.yt_client_secrets.exists() else '(missing)'}")
     print(f"  youtube oauth token:    {cfg.yt_token} {'(present)' if cfg.yt_token.exists() else '(missing)'}")
     print(f"  instagram token in .env: {'(set)' if cfg.ig_access_token else '(missing)'}; IG_USER_ID: {'(set)' if cfg.ig_user_id else '(missing)'}")
+    print(f"  facebook Page in .env:  {'(set)' if cfg.fb_page_id and cfg.fb_page_access_token else '(missing)'}; FB_PAGE_ID: {'(set)' if cfg.fb_page_id else '(missing)'}")
+    print(f"  tiktok token in .env:   {'(set)' if cfg.tiktok_access_token else '(missing)'}; open_id: {'(set)' if cfg.tiktok_open_id else '(missing)'}")
     print(f"  bilibili cookies in .env: {'(set)' if cfg.bili_sessdata and cfg.bili_jct else '(missing)'}")
     return 0
 

@@ -1,5 +1,5 @@
 @echo off
-rem Clipper Uploader - self-hosted posting to YouTube / Instagram / Bilibili.
+rem Clipper Uploader - self-hosted posting to YouTube / Instagram / Bilibili / Facebook / TikTok.
 rem DRY-RUN by default. Real post (human gate, same rule as post-clip.ps1):
 rem   uploader.bat list --job <job_id>
 rem   uploader.bat post --job <job_id> --clip <N> --post

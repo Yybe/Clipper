@@ -1,4 +1,4 @@
-# Clipper — Further Plan (updated 2026-08-30)
+# Clipper — Further Plan (updated 2026-09-03)
 
 Where the project goes next. Built on top of what is already proven (README.md):
 the OpenShorts pipeline runs end-to-end on this machine — download →
@@ -74,14 +74,14 @@ The workflow deliberately keeps a human gate — it just makes the gate fast:
      `-Title`/`-Description` to override.
 4. **Cadence (the plan): 2 clips/day** — one ~12:30, one ~19:30 local time,
    staggered across YouTube Shorts and Instagram Reels (all three platforms —
-   including Bilibili — via `uploader.bat` as of Phase 8b, see 3b). Never
+   including Bilibili + Facebook + TikTok — via `uploader.bat` as of Phase 8b/8c, see 3b). Never
    batch-dump 5 clips at once: spaced posts each get their own test batch
    from the algorithm.
 
-**Target platform set (updated 2026-08-30): YouTube + Instagram + Bilibili.**
-TikTok is dropped.
+**Target platform set (updated 2026-09-03): YouTube + Instagram + Bilibili + Facebook + TikTok (all self-hosted, all independent of Upload-Post).**
+TikTok was dropped on 2026-08-30 and is now restored via the official Content Posting API.
 
-### 3b. Self-hosted uploader (Phase 8b — the unlimited leg, replaces Upload-Post as default)
+### 3b. Self-hosted uploader (Phase 8b/8c — the unlimited leg, replaces Upload-Post as default)
 
 Upload-Post turned out to be a dead end for the real goal: its free tier caps
 at **10 uploads/month** and Bilibili isn't among its 22 platforms (verified
@@ -94,6 +94,8 @@ orchestrator composing the best client per platform:
 |---|---|---|---|
 | YouTube | official Data API v3 (`google-api-python-client`, resumable) | OAuth desktop flow, token cached in `uploader/credentials/` | none that matters (quota ≥ ~6 uploads/day free) |
 | Instagram | official Meta Graph API Reels publish (container → poll → `media_publish`) | long-lived IG token + user id in `.env` | none; public video URL solved by auto Cloudflare quick-tunnel over the backend's `/videos` mount |
+| Facebook | official Meta Graph API Page video (`/{page-id}/videos`, direct file upload) | Page access token (`FB_PAGE_ID` + `FB_PAGE_ACCESS_TOKEN` in `.env`, same app as Instagram) | none; no tunnel needed (file POSTed directly) |
+| TikTok | official Content Posting API (`open.tiktokapis.com`, PULL_FROM_URL + FILE_UPLOAD) | OAuth `video_publish` + `video_upload` → `TIKTOK_ACCESS_TOKEN`/`TIKTOK_OPEN_ID` in `.env` | none; PULL needs a public URL (auto tunnel), FILE_UPLOAD always works |
 | Bilibili | `bilibili-api-python` `video_uploader` (open source, maintained 2026) | browser cookies in `.env` (`BILI_SESSDATA`/`BILI_JCT`/`BILI_BUVID3`) | none official; keep the 2/day cadence for risk control |
 
 Design rules kept from the Upload-Post era:
@@ -106,6 +108,7 @@ Design rules kept from the Upload-Post era:
 - One platform failing never blocks the others; exit code reports partial
   success (0 all, 2 partial, 1 none).
 - `uploader.bat check` / `doctor` give per-platform readiness + setup steps.
+- Shared `uploader/tunnel.py` QuickTunnel is reused by Instagram + TikTok PULL paths (or a permanent `*_PUBLIC_BASE_URL` if set).
 
 The Upload-Post path (`scripts/post-clip.ps1`) stays wired as a paid-tier
 fallback and is still what the already-scheduled Upload-Post posts run on.
@@ -213,4 +216,6 @@ Views come from iterating on real numbers, not from the first batch:
 | 2026-08-31 | **Cleanup of the previous batch's outputs** | ✅ removed 4 test-job output dirs (31423aa8 GDQ, 3ae47cce 83 s smoke, 9f96dcfd 1080p cap probe, fc80ddc9 empty), kept the original `db806c36` GTA6 batch (it produced the 3 already-exported `posts\` clips) and the 5 failed OOM dirs from the parallel run |
 | 2026-08-31 | **Today's posts: 2/3 live to YT+IG via Upload-Post, 3rd hit the 10/month cap** | ✅ Clip 0 of `445378b1` ("GTA 6 Physics Are Actually Insane", score 92) and clip 1 of `5cdbf373` ("If she hasn't pre-ordered GTA 6, leave.", score 90) both posted to **YouTube + Instagram** via `POST /api/social/post` (Upload-Post profile `Wybe`, both platforms connected). Clean-named copies saved to `posts/2026-08-31_…_92.mp4` and `posts/2026-08-31_if-she-hasnt-pre-ordered-gta-6-leave_90.mp4`. ⚠️ Clip 3 of `88403d79` ("What happens if you leak GTA 6?") **rejected by Upload-Post with `429` and `count:10, limit:10`** — the Aug 30 batch already consumed the 10/month free-tier quota (6 uploads: 3 posts × 2 platforms) plus 2 of today's = 8, then the 3rd post crossed the cap. **Confirms exactly why the self-hosted uploader exists** — but Bilibili still needs phone binding (above) and YouTube still needs OAuth login (next row) |
 | 2026-08-31 | **YouTube OAuth token (deferred — needs interactive user step)** | ⚠️ `uploader\credentials\client_secrets.json` is in place (Google Cloud project `clipping-automation-506912`, Desktop-app OAuth client) but `youtube_token.json` has never been generated — the only path is `uploader.bat login --platform youtube`, which opens a browser consent window and can only be done by the user. **Once done**, `uploader.bat post --platforms youtube` replaces Upload-Post for YouTube with no monthly cap. Until then, all YouTube traffic goes through Upload-Post (subject to the 10/month cap that triggered this whole rebuild) |
+| 2026-09-03 | **Phase 8c: Facebook + TikTok adapters (independent of Upload-Post)** | ✅ **5-platform uploader live:** `uploader/platforms/facebook.py` (Graph API Page video, direct file POST, same Meta app as IG) + `uploader/platforms/tiktok.py` (Content Posting API, PULL_FROM_URL with auto quick-tunnel + FILE_UPLOAD chunked PUT with status polling). Shared `uploader/tunnel.py` QuickTunnel deduped from Instagram. `uploader/config.py` now reads `FB_PAGE_ID/FB_PAGE_ACCESS_TOKEN/FB_GRAPH_VERSION` + `TIKTOK_CLIENT_KEY/CLIENT_SECRET/ACCESS_TOKEN/REFRESH_TOKEN/OPEN_ID/PRIVACY_LEVEL/PUBLIC_BASE_URL/CHUNK_SIZE`. `uploader/engine.py` builds per-platform payloads for all 5; `uploader/cli.py` + `uploader/platforms/__init__.py` registry = `[bilibili, facebook, instagram, tiktok, youtube]`. `uploader.bat` + CLI help updated to 5 platforms. `doctor` now reports FB + TikTok creds; `check --platforms facebook,tiktok` prints exact one-time setup steps. Dry-run `build_payloads` verified for a real clip (all 5 titles/captions/tags); `uploader --help`, `doctor`, `check` (valid/invalid platform), and the `--post` human gate all verified live. No secrets committed (`uploader/credentials/` + `.env` remain gitignored). |
+| 2026-09-03 | **Docs: 5-platform rollout** | ✅ `.env.example` documents FB + TikTok vars (Page token + TikTok OAuth 5-value set, privacy/chunk options, `POST_PLATFORMS` lists all 5). `README.md` updated: intro, Stack, Built-on-OpenShorts table, Layout, viral-format table, Self-hosted uploader (5-row table + shared ~900-line note), one-time setup steps 4 (Facebook) + 5 (TikTok), Phase map step 6, ToS flags (YT/IG/FB/TikTok/Bilibili). |
 | 2026-08-31 | **Tomorrow's 3 posts: blocked on the two user-side one-time steps** | ❌ clips are picked and ready (Sidemen `4646465f` clip 0, Jynxzi `4d8cf14c` clip 0, Kai Cenat `5cdbf373` clip 4) but the two blocking steps both have to land first: **(1)** user runs `uploader.bat login --platform youtube` once to mint the YT token, **(2)** user binds a phone number to the Bilibili account once. After that: `uploader.bat post --job <id> --clip N --post --yes --platforms youtube,bilibili` for each of the 3 tomorrow clips, and the IG leg via `post-clip.bat` once the next Upload-Post period starts (free tier resets monthly) |

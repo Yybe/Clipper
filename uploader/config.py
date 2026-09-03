@@ -62,6 +62,29 @@ class Config:
         self.bili_original = self.env.get("BILI_ORIGINAL", "1") == "1"
         self.bili_source = self.env.get("BILI_SOURCE", "")
 
+        # Facebook (official Graph API, Page video/Reels — same app as Instagram)
+        self.fb_page_id = self.env.get("FB_PAGE_ID", "")
+        self.fb_page_access_token = self.env.get("FB_PAGE_ACCESS_TOKEN", "")
+        # Reuse IG token as fallback if a dedicated Page token is not set
+        if not self.fb_page_access_token and self.env.get("FB_ACCESS_TOKEN", ""):
+            self.fb_page_access_token = self.env.get("FB_ACCESS_TOKEN", "")
+        self.fb_graph_version = self.env.get("FB_GRAPH_VERSION", self.env.get("IG_GRAPH_VERSION", "v23.0"))
+        self.fb_public_base_url = self.env.get("FB_PUBLIC_BASE_URL", "").rstrip("/")
+
+        # TikTok (official Content Posting API — PULL_FROM_URL + FILE_UPLOAD)
+        self.tiktok_client_key = self.env.get("TIKTOK_CLIENT_KEY", "")
+        self.tiktok_client_secret = self.env.get("TIKTOK_CLIENT_SECRET", "")
+        self.tiktok_access_token = self.env.get("TIKTOK_ACCESS_TOKEN", "")
+        self.tiktok_refresh_token = self.env.get("TIKTOK_REFRESH_TOKEN", "")
+        self.tiktok_open_id = self.env.get("TIKTOK_OPEN_ID", "")
+        self.tiktok_privacy_level = self.env.get("TIKTOK_PRIVACY_LEVEL", "SELF_ONLY")
+        self.tiktok_public_base_url = self.env.get("TIKTOK_PUBLIC_BASE_URL", "").rstrip("/")
+        # FILE_UPLOAD chunk size; TikTok allows 1-64 MB, default 10 MB
+        try:
+            self.tiktok_chunk_size = int(self.env.get("TIKTOK_CHUNK_SIZE", str(10 * 1024 * 1024)))
+        except ValueError:
+            self.tiktok_chunk_size = 10 * 1024 * 1024
+
         self.default_platforms = [
             p.strip()
             for p in self.env.get("POST_PLATFORMS", "youtube,instagram,bilibili").split(",")
