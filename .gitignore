@@ -22,3 +22,6 @@ bin/
 
 # Posted-clip exports (copies with clean names)
 posts/
+
+# ZCode session artifacts (may contain pasted secrets)
+.zcode/plans/
