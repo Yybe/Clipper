@@ -1,5 +1,20 @@
 # Ready-to-post batch — 2026-09-06/07 (multi-game viral batch)
 
+**POSTED 2026-09-07** to the **Wybe** YouTube channel (@wybe5048, `xx.shiv.xx2212@gmail.com`) **AND Bilibili** (_Wybe_, uid 3745039282867460):
+
+| Clip | Score | YouTube | Bilibili |
+|---|---|---|---|
+| "Rockstar really just finessed us all." | 92 | https://youtube.com/shorts/qtyxVepAXvk | https://www.bilibili.com/video/BV1LNbt6yEzS |
+| "Wait, did you steal my car?!" | 90 | https://youtube.com/shorts/YBfKlaEUddM | https://www.bilibili.com/video/BV1vNbt6yE2H |
+| "Oh shit, vampires? This is awesome." | 88 | https://youtube.com/shorts/XIXf4SZIcxM | https://www.bilibili.com/video/BV15Nbt6yE8y |
+| "Is this the most brutal stealth game?" | 88 | https://youtube.com/shorts/oLjhM5T0fpo | https://www.bilibili.com/video/BV1VNbt6yEfH |
+| "This massive 2K27 update is a W." | 88 | https://youtube.com/shorts/hWS5GB6tgTA | https://www.bilibili.com/video/BV15Nbt6yETm |
+
+An earlier batch went to the wrong channel ("Shivam Tripathi", UCukwNg3W2iujMume3-3YpcA) before the
+correct OAuth account was selected — those 5 URLs (`4YyxY6Q6TJ4`, `xweIW0EO7uk`, `JjfxecHze1s`,
+`QtzQqViA3sk`, `T9K4xBeJv9s`) are duplicates on the wrong channel and can be deleted from YouTube
+Studio.
+
 8 sources → 8 completed jobs → 40 finished clips in the review queue
 (`openshorts\output\<job_id>\`, also visible at <http://localhost:5175>).
 Every clip below is the final captioned MP4 (`subtitled_*.mp4`), 1080×1920,

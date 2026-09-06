@@ -65,7 +65,7 @@ class YouTubeAdapter(PlatformAdapter):
         flow = InstalledAppFlow.from_client_secrets_file(str(self.cfg.yt_client_secrets), SCOPES)
         creds = flow.run_local_server(port=0, prompt="consent")
         self.cfg.yt_token.parent.mkdir(parents=True, exist_ok=True)
-        creds.to_json(self.cfg.yt_token)
+        self.cfg.yt_token.write_text(creds.to_json(), encoding="utf-8")
         who = self._channel_title(creds)
         return f"YouTube authorized ({who}). Token saved to {self.cfg.yt_token}"
 
