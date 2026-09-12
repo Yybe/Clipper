@@ -40,7 +40,8 @@ class YouTubeAdapter(PlatformAdapter):
         creds = self._credentials()
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            creds.to_json(self.cfg.yt_token)
+            # newer google-auth: to_json() takes no filename; write it ourselves
+            self.cfg.yt_token.write_text(creds.to_json(), encoding="utf-8")
         if not creds or not creds.valid:
             raise SetupError(
                 f"No valid YouTube OAuth token at {self.cfg.yt_token}. One-time setup:\n"
