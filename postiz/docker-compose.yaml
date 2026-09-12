@@ -1,0 +1,225 @@
+# Clipper - Postiz self-hosted scheduler stack (YouTube / Instagram / Facebook / TikTok
+# scheduling + calendar; Bilibili is NOT supported by Postiz and stays on uploader.bat).
+#
+# Adapted from upstream https://github.com/gitroomhq/postiz-docker-compose
+# (docker-compose.yaml; that repo is AGPL-3.0 - keep this file out of redistributed
+# builds or re-check the license). Differences from upstream:
+#   - secrets are NOT inline: JWT_SECRET / provider OAuth apps are interpolated
+#     from postiz/.env (gitignored; template: postiz/.env.example)
+#   - restart: unless-stopped instead of always (stop.bat-style control)
+#   - project name pinned so volumes/networks don't collide with other stacks
+#
+# UI: http://localhost:4007  |  Temporal UI: http://localhost:8080 (loopback only)
+# Public API: http://localhost:4007/api/public/v1 (Authorization: <POSTIZ_API_KEY>)
+name: postiz
+
+services:
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz
+    restart: unless-stopped
+    environment:
+      # === Required settings (secrets from postiz/.env)
+      MAIN_URL: ${POSTIZ_MAIN_URL:-http://localhost:4007}
+      FRONTEND_URL: ${POSTIZ_MAIN_URL:-http://localhost:4007}
+      NEXT_PUBLIC_BACKEND_URL: ${POSTIZ_MAIN_URL:-http://localhost:4007}/api
+      JWT_SECRET: "${POSTIZ_JWT_SECRET:?set POSTIZ_JWT_SECRET in postiz/.env - template postiz/.env.example}"
+      DATABASE_URL: postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local
+      REDIS_URL: redis://postiz-redis:6379
+      BACKEND_INTERNAL_URL: http://localhost:3000
+      TEMPORAL_ADDRESS: temporal:7233
+      IS_GENERAL: 'true'
+      DISABLE_REGISTRATION: ${POSTIZ_DISABLE_REGISTRATION:-false}
+      RUN_CRON: 'true'
+
+      # === Storage (local volume; swap for cloud storage later if needed)
+      STORAGE_PROVIDER: 'local'
+      UPLOAD_DIRECTORY: '/uploads'
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: '/uploads'
+
+      # === Provider OAuth apps (blank = that provider can't connect channels)
+      # Redirect URI to register at each provider: http://localhost:4007/integrations/social/<provider>
+      YOUTUBE_CLIENT_ID: ${POSTIZ_YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${POSTIZ_YOUTUBE_CLIENT_SECRET:-}
+      FACEBOOK_APP_ID: ${POSTIZ_FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${POSTIZ_FACEBOOK_APP_SECRET:-}
+      INSTAGRAM_APP_ID: ${POSTIZ_INSTAGRAM_APP_ID:-}
+      INSTAGRAM_APP_SECRET: ${POSTIZ_INSTAGRAM_APP_SECRET:-}
+      TIKTOK_CLIENT_ID: ${POSTIZ_TIKTOK_CLIENT_ID:-}
+      TIKTOK_CLIENT_SECRET: ${POSTIZ_TIKTOK_CLIENT_SECRET:-}
+
+      # === Misc
+      API_LIMIT: 30
+      NX_ADD_PLUGINS: false
+
+    volumes:
+      - postiz-config:/config/
+      - postiz-uploads:/uploads/
+    ports:
+      - "4007:5000"
+    networks:
+      - postiz-network
+      - temporal-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "const r=require('http').get('http://localhost:5000/',res=>process.exit(res.statusCode<500?0:1));r.on('error',()=>process.exit(1));r.setTimeout(4000,()=>{r.destroy();process.exit(1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+
+  postiz-postgres:
+    image: postgres:17-alpine
+    container_name: postiz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: postiz-password
+      POSTGRES_USER: postiz-user
+      POSTGRES_DB: postiz-db-local
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postiz-user -d postiz-db-local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postiz-redis:
+    image: redis:7.2
+    container_name: postiz-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    volumes:
+      - postiz-redis-data:/data
+    networks:
+      - postiz-network
+
+  # -----------------------
+  # Temporal stack (Postiz 2.12+ uses it for post workflows)
+  # -----------------------
+  temporal-elasticsearch:
+    container_name: postiz-temporal-elasticsearch
+    image: elasticsearch:7.17.27
+    restart: unless-stopped
+    environment:
+      - cluster.routing.allocation.disk.threshold_enabled=true
+      - cluster.routing.allocation.disk.watermark.low=512mb
+      - cluster.routing.allocation.disk.watermark.high=256mb
+      - cluster.routing.allocation.disk.watermark.flood_stage=128mb
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.security.enabled=false
+    networks:
+      - temporal-network
+    expose:
+      - 9200
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS \"http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s\" || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    volumes:
+      - temporal-elasticsearch-data:/usr/share/elasticsearch/data
+
+  temporal-postgresql:
+    container_name: postiz-temporal-postgresql
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    networks:
+      - temporal-network
+    expose:
+      - 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - temporal-postgres-data:/var/lib/postgresql/data
+
+  temporal:
+    container_name: postiz-temporal
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:7233:7233'
+    image: temporalio/auto-setup:1.28.1
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+      temporal-elasticsearch:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_ES=true
+      - ES_SEEDS=temporal-elasticsearch
+      - ES_VERSION=v7
+      - TEMPORAL_NAMESPACE=default
+    networks:
+      - temporal-network
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "temporal:7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  temporal-ui:
+    container_name: postiz-temporal-ui
+    image: temporalio/ui:2.34.0
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://127.0.0.1:4007
+    networks:
+      - temporal-network
+    ports:
+      - '127.0.0.1:8080:8080'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+volumes:
+  postgres-volume:
+  postiz-redis-data:
+  postiz-config:
+  postiz-uploads:
+  temporal-postgres-data:
+  temporal-elasticsearch-data:
+
+networks:
+  postiz-network:
+  temporal-network:
+    driver: bridge
+    name: temporal-network

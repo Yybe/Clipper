@@ -88,8 +88,11 @@ pulling upstream updates.
                 IG_ACCESS_TOKEN, BILI_SESSDATA, ... (uploader keys too)
 .env.example    documented template — copy to .env
 openshorts/     the engine itself (cloned from mutonby/openshorts; has its own git history)
+postiz/         local Postiz scheduler stack (docker compose) + .env.example; secrets in gitignored postiz/.env
 uploader/       self-hosted posting legs: YouTube API / IG+FB Graph API / TikTok API / Bilibili (own venv)
 uploader.bat    the unlimited multi-platform posting CLI (dry-run by default, 5 platforms)
+postiz.bat      Postiz stack control (start/stop/logs/status/update)
+postiz-post.bat post a finished clip through Postiz (dry-run by default, same human gate)
 PLAN.md         the further plan: verified viral format spec, posting cadence, phases
 scripts/        PowerShell tooling (viral-job / post-clip / check-social)
 *.bat           double-click wrappers: start/stop, viral-clip, uploader, post-clip, check-social
@@ -176,6 +179,7 @@ double-clickable scripts (all `scripts/*.ps1` / `uploader/` under the hood):
 |---|---|
 | `viral-clip.bat <url>` | Submits any video/stream link through the **verified viral format profile**: burned hook overlay (`outline` style, top), 15–34 s clips (retention sweet spot), audio-beat punch-ins, Gemini auto layout picker + speaker cuts/split, karaoke captions (default), loop-aware/no-dead-air scoring prompts. Polls until done, then prints every clip's score, hook, title and file. Source downloads cap at 720p by default (root `.env` `MAX_SOURCE_HEIGHT=720`, the fix for the Twitch 1080p60 stall) — finished clips still deliver 1080×1920; add `-MaxSourceHeight 1080` for a full-quality source on one job. |
 | `uploader.bat` | **The default posting leg — unlimited, all 5 platforms.** Dry-run by default: `uploader.bat list --job <id>` shows every clip with score/hook/copy; `uploader.bat post --job <id> --clip <N>` dry-runs the exact payloads; append `--post` (+ `--yes` for scripted runs) to actually upload to YouTube + Instagram + Bilibili + Facebook + TikTok (or `--platforms youtube,bilibili` to narrow). `uploader.bat check` validates credentials per platform; `uploader.bat doctor` checks the environment. Setup below. |
+| `postiz-post.bat <job_id>` | **Scheduler leg via local self-hosted Postiz** — dry-run by default, `-ClipIndex N -Post` posts/schedules to every channel connected in Postiz (YouTube / Instagram / Facebook / TikTok; no Bilibili). Add `-ScheduledDate "YYYY-MM-DDTHH:mm:ss"` (local time) to schedule; `-Draft` is a safe API smoke test. `postiz.bat start` boots the stack (UI <http://localhost:4007>). Setup below. |
 | `post-clip.bat <job_id>` | **Fallback posting via Upload-Post** (paid tier if you want it) — dry-run by default, `-ClipIndex N -Post -Profile Wybe` posts/schedules to YT + IG only. |
 | `check-social.bat` | Read-only check of the Upload-Post key (fallback leg's status). |
 
@@ -198,9 +202,10 @@ composing the strongest open-source/official client per platform:
 
 Why not [instagrapi](https://github.com/subzeroid/instagrapi) for Instagram? Why not a TikTok scraper?
 Its own repo states Reels uploads are **no longer maintained** (Meta
-restricted the project) — the official Graph API is the stable path. Why not
-Postiz self-hosted? It's a whole scheduling platform (Redis + Postgres) that
-still requires a Meta app for IG and still has no Bilibili.
+restricted the project) — the official Graph API is the stable path.
+(2026-08-30 note "why not Postiz" is superseded: Postiz is now wired as the
+local **scheduler** for YT/IG/FB/TikTok — see below — while the uploader
+stays the no-vendor direct-posting leg and the only Bilibili route.)
 
 Every real upload is recorded in `uploader/credentials/ledger.json`
 (gitignored) — timestamp, job, clip, per-platform result/URL — and a
@@ -251,6 +256,42 @@ clean-named copy lands in `posts\` like the Upload-Post flow.
 **Posting safety is unchanged:** the uploader dry-runs by default and a real
 post needs `--post` plus a specific `--clip` index (AGENTS.md human gate).
 
+### Postiz scheduler (local, docker compose)
+
+Postiz runs locally as the **scheduling layer** — visual calendar + queue for
+YouTube / Instagram / Facebook / TikTok (it has no Bilibili, which stays on
+`uploader.bat`). It does not replace the per-platform credentials above; it
+connects channels with its own OAuth apps and publishes on schedule. Two
+files matter:
+
+- `postiz.bat start|stop|restart|logs|status|update` — the stack
+  (`postiz/docker-compose.yaml`: postiz + postgres + redis + Temporal).
+  UI: <http://localhost:4007>, Temporal UI: <http://localhost:8080>.
+- `postiz-post.bat <job_id>` — posts a pipeline clip through Postiz. Dry-run
+  by default; `-ClipIndex N -Post` is the human gate; `-ScheduledDate`
+  schedules; `-Draft` tests the API round-trip without touching a social
+  network.
+
+One-time setup:
+
+1. `copy postiz\.env.example postiz\.env` and set `POSTIZ_JWT_SECRET`
+   (long random string). `postiz.bat start`.
+2. Register the first admin user at <http://localhost:4007> (registration is
+   open until you set `POSTIZ_DISABLE_REGISTRATION=true` and restart).
+3. Provider OAuth apps in `postiz\.env` (`POSTIZ_YOUTUBE_CLIENT_ID/SECRET`,
+   `POSTIZ_FACEBOOK_APP_ID/SECRET` — one Meta app covers Facebook +
+   Instagram, `POSTIZ_TIKTOK_CLIENT_ID/SECRET`), each with redirect URI
+   `http://localhost:4007/integrations/social/<provider>`. Recreate:
+   `postiz.bat stop && postiz.bat start`.
+4. Connect the channels in the Postiz UI (Add Channel), then mint an API key
+   (UI → Settings → API Keys) and paste it into the root `.env` as
+   `POSTIZ_API_KEY=<key>`.
+5. `postiz-post.bat <job_id>` (dry-run) should now list your clips AND the
+   connected channels.
+
+API: `http://localhost:4007/api/public/v1` with header
+`Authorization: <POSTIZ_API_KEY>` (docs.postiz.com/public-api).
+
 ## Phase map (all inside OpenShorts — zero custom code)
 
 1. **Install** — clone + `docker compose up --build`; confirm UI responds.
@@ -258,7 +299,7 @@ post needs `--post` plus a specific `--clip` index (AGENTS.md human gate).
 3. **Transcription + moment detection** — faster-whisper + Gemini scoring run automatically; output is ranked candidates with timestamps + reasoning.
 4. **Clip generation** — automatic 9:16 face-tracked crop (YOLOv8/mediapipe), burned captions, multi-speaker layout switching; MP4s land in the review queue.
 5. **Human review gate** — approve/reject/edit in OpenShorts' review interface. **Nothing auto-posts without explicit approval for the first several batches.**
-6. **Publishing** — `uploader.bat post --job <id> --clip N --post`: one command posts the clip to **YouTube Shorts + Instagram Reels + Facebook Reels + TikTok + Bilibili** (no vendor, no monthly cap). Use `--platforms youtube,tiktok` to narrow. Cadence plan stays 2 clips/day, spaced (12:30 / 19:30) — never batch-dump. Upload-Post (`post-clip.bat`) remains as the paid-tier fallback for YT+IG. **Still gated: the review pass + explicit `--post` + specific `--clip`.**
+6. **Publishing** — `uploader.bat post --job <id> --clip N --post`: one command posts the clip to **YouTube Shorts + Instagram Reels + Facebook Reels + TikTok + Bilibili** (no vendor, no monthly cap). Use `--platforms youtube,tiktok` to narrow. Or schedule through the local Postiz calendar: `postiz-post.bat <job_id> -ClipIndex N -Post -ScheduledDate "YYYY-MM-DDTHH:mm:ss"` (YT/IG/FB/TikTok only). Cadence plan stays 2 clips/day, spaced (12:30 / 19:30) — never batch-dump. Upload-Post (`post-clip.bat`) remains as the paid-tier fallback for YT+IG. **Still gated: the review pass + explicit `--post`/`-Post` + specific `--clip`/`-ClipIndex`.**
 7. **Weekly review loop** — pull analytics via OpenShorts/Upload-Post, log top source videos + clip types to a CSV for manual review. No auto-scaling decisions.
 
 ## Constraints (enforced)
@@ -269,7 +310,8 @@ post needs `--post` plus a specific `--clip` index (AGENTS.md human gate).
 - Every phase is confirmed working before the next one starts.
 - Both posting legs are dry-run by default: `uploader.bat post` needs
   `--post` + a specific `--clip`; `post-clip.ps1` needs `-Post` +
-  `-ClipIndex`. Nothing uploads without those.
+  `-ClipIndex`; `postiz-post.ps1` needs `-Post` + `-ClipIndex`. Nothing
+  uploads without those.
 
 ## ToS / legal flags (kept visible on purpose)
 

@@ -129,6 +129,29 @@ profile is unused). The remaining gate is the human review before the first
 5. `check-social.bat` verifies: shows the profile + connected platforms
    (read-only). Only then does `post-clip.bat ... -Post` work.
 
+### 3c. Postiz scheduler (Phase 8d — local docker compose, added 2026-09-12)
+
+Postiz now runs locally (`postiz/docker-compose.yaml`: postiz + postgres +
+redis + Temporal; `postiz.bat start`) as the **scheduling layer** — visual
+calendar + queue for YouTube / Instagram / Facebook / TikTok. Scope decided
+up front: Postiz has **no Bilibili**, so Bilibili stays on `uploader.bat`;
+the self-hosted uploader stays the default direct-posting leg (no vendor, no
+cap), and Postiz is the leg to use when the calendar/scheduler UX is wanted.
+
+- CLI: `postiz-post.bat <job_id>` — dry-run by default; real post needs
+  `-Post` + specific `-ClipIndex` (same human gate). `-ScheduledDate`
+  (local time, converted to UTC) schedules; `-Draft` is a safe API test
+  (media upload only, no post object, no social side).
+- Auth: root `.env` `POSTIZ_API_KEY` (`Authorization` header) +
+  `POSTIZ_BASE_URL` (default http://localhost:4007); API base
+  `/api/public/v1`.
+- Container secrets (JWT_SECRET, provider OAuth apps) live in gitignored
+  `postiz/.env` (template `postiz/.env.example`). Provider redirect URI
+  pattern: `http://localhost:4007/integrations/social/<provider>`.
+- Admin account + API key minted at install time (2026-09-12); key is in the
+  root `.env`. Registration can be closed afterwards via
+  `POSTIZ_DISABLE_REGISTRATION=true` + restart.
+
 ## 4. Retention feedback loop (Phase 9 — next after first posts)
 
 Views come from iterating on real numbers, not from the first batch:
@@ -224,3 +247,4 @@ Views come from iterating on real numbers, not from the first batch:
 | 2026-09-06 | **Posting legs audit — everything is credential-blocked (user-side)** | ❌ verified live, fail-loud: **Upload-Post** key valid, Wybe still has instagram+youtube, but the quota window shows `count:10, limit:10, last_reset 2026-08-28` → tonight's first post attempt (`9fb326d1` clip 1) correctly refused with `429 … 0 upload(s) remaining`; window reopens ~**Sep 28**. **YouTube self-hosted**: OAuth consent now returns `403 access_denied — Clipper has not completed the Google verification process` (app in Testing mode, `omshiv2218@gmail.com` not an approved tester; fix in Cloud Console → OAuth consent screen → test users, then `uploader.bat login --platform youtube`). **Bilibili**: `-101 账号未登录` (cookies invalidated server-side) and the Chrome profile is logged out of bilibili.com too. **IG/FB/TikTok self-hosted**: never configured. Zero posts possible until at least one leg is unblocked — picks + one-command post lines wait in READY_TO_POST.md |
 | 2026-09-06 | **Source-language lesson: Hindi channels produce Devanagari hooks** | ⚠️ MohitVerse Wolverine job (`f981c351`, 5 clips, scores 75–85) came back with Hindi hooks/titles (correct Devanagari in metadata, garbled only in the PS 5.1 console) — wrong market for this channel set and uncertain hook-font rendering. Clips kept but deprioritized in READY_TO_POST.md; stick to English-language reaction channels for sources |
 | 2026-09-07 | **First live post batch: 5 clips on YouTube + Bilibili (self-hosted legs, both live)** | ✅ **LIVE on both platforms** — after the user added the OAuth tester + bound the Bilibili phone number, and we fixed the `creds.to_json(Path)` crash (now `write_text(to_json())`) and drove the OAuth consent via computer-use, the top 5 picks posted to **YouTube (Wybe @wybe5048)**: 92/90/88/88/88 (GTA 6 release-date, GTA 6 Extended Look, Dawnwalker, Wolverine, NBA 2K27) **and to Bilibili (_Wybe_)**: `BV1LNbt6yEzS` / `BV1vNbt6yE2H` / `BV15Nbt6yE8y` / `BV1VNbt6yEfH` / `BV15Nbt6yETm`. Bilibili phone binding (`61001` blocker) resolved by the user in the app. ⚠️ An earlier 5-clip run landed on the **wrong** YT channel ("Shivam Tripathi", `UCukwNg3W2iujMume3-3YpcA`) before the correct OAuth account was selected — flagged as duplicates for manual deletion in YouTube Studio |
+| 2026-09-12 | **Phase 8d: Postiz scheduler stack up + API verified live** | ✅ local stack (`postiz/docker-compose.yaml`, adapted from gitroomhq/postiz-docker-compose with secrets via gitignored `postiz/.env`) — postiz + postgres17 + redis + Temporal(elasticsearch) all healthy, UI on :4007. Admin user registered via API (`/api/auth/register` needs `provider:"LOCAL"` + `company`), API key = `Organization.apiKey`, saved to root `.env` as `POSTIZ_API_KEY`. Live against the running instance: `GET /public/v1/integrations` → `[]` (200, auth OK); `POST /public/v1/upload` accepted a real 11 MB pipeline MP4 (`posts/2026-08-31_gta-6-physics…_92.mp4`) → media id + local `/uploads` path. Draft-with-no-integration correctly refused (`400 All posts must have an integration id`) — real end-to-end posts need connected channels (user-side provider OAuth apps in `postiz/.env`, redirect `http://localhost:4007/integrations/social/<provider>`). `postiz-post.ps1` CLI: parse + graceful job-not-found failure verified; Postiz-unique code paths (auth/integrations/upload) verified via curl; job-lookup code is identical to proven `post-clip.ps1` | |

@@ -2,6 +2,8 @@
 .env
 cookies.txt
 uploader/credentials/
+postiz/.env
+postiz/.admin-credentials
 
 # OpenShorts runtime artifacts (media, models, job outputs)
 openshorts/output/
