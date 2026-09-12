@@ -19,7 +19,27 @@ if /i "%~1"=="start" (
     exit /b 1
   )
   %COMPOSE% up -d
-  echo Postiz UI: http://localhost:4007  ^(first boot takes a couple of minutes^)
+  echo Postiz UI: http://localhost:4007  ^(waiting for backend - first boot takes a couple of minutes^)
+  rem Known Postiz boot race: the backend can lose the port-3000 bind at
+  container-start and stay "online" in pm2 while dead (UI stuck, all 502).
+  rem Detect it via the API through nginx and kick pm2 once.
+  set /a tries=0
+  :waitloop
+  timeout /t 10 /nobreak >nul
+  set "CODE=000"
+  for /f "delims=" %%i in ('curl -s -o nul -m 5 -w "%%{http_code}" -X POST "http://localhost:4007/api/auth/login" -H "Content-Type: application/json" -d "{}"') do set "CODE=%%i"
+  if not "%CODE%"=="502" if not "%CODE%"=="000" goto up_ok
+  set /a tries+=1
+  if %tries% geq 3 (
+    echo Backend looks dead ^(%CODE%^) - restarting it inside the container...
+    docker exec postiz pm2 restart backend
+    timeout /t 20 /nobreak >nul
+  )
+  if %tries% lss 8 goto waitloop
+  echo WARNING: backend did not come up after 8 probes - check postiz.bat logs
+  exit /b 1
+  :up_ok
+  echo Postiz is up: http://localhost:4007
   exit /b 0
 )
 if /i "%~1"=="stop"   ( %COMPOSE% down & exit /b 0 )
