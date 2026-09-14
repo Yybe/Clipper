@@ -95,7 +95,7 @@ class YouTubeAdapter(PlatformAdapter):
 
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            creds.to_json(self.cfg.yt_token)
+            self.cfg.yt_token.write_text(creds.to_json(), encoding="utf-8")
         try:
             who = self._channel_title(creds)
         except Exception as exc:  # noqa: BLE001 - surface the real API error
