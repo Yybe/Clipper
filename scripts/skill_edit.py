@@ -8,8 +8,8 @@ Guarantees vs the openshorts complaints:
 import json, subprocess, sys, os, re
 
 RUN_DIR = os.path.dirname(os.path.abspath(__file__))
-SOURCE = os.path.join(RUN_DIR, "source.mp4")
-SEGMENTS = os.path.join(RUN_DIR, "segments.json")
+SOURCE = os.environ.get("SKILL_SOURCE", os.path.join(RUN_DIR, "source.mp4"))
+SEGMENTS = os.environ.get("SKILL_SEGS", os.path.join(RUN_DIR, "segments.json"))
 
 def fmt(t: float) -> str:
     h, r = divmod(t, 3600); m, s = divmod(r, 60)
