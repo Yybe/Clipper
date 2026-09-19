@@ -183,6 +183,8 @@ double-clickable scripts (all `scripts/*.ps1` / `uploader/` under the hood):
 | `postiz-post.bat <job_id>` | **Scheduler leg via local self-hosted Postiz** — dry-run by default, `-ClipIndex N -Post` posts/schedules to every channel connected in Postiz (YouTube / Instagram / Facebook / TikTok; no Bilibili). Add `-ScheduledDate "YYYY-MM-DDTHH:mm:ss"` (local time) to schedule; `-Draft` is a safe API smoke test. `postiz.bat start` boots the stack (UI <http://localhost:4007>). Setup below. |
 | `post-clip.bat <job_id>` | **Fallback posting via Upload-Post** (paid tier if you want it) — dry-run by default, `-ClipIndex N -Post -Profile Wybe` posts/schedules to YT + IG only. |
 | `check-social.bat` | Read-only check of the Upload-Post key (fallback leg's status). |
+| `scripts\render-skill-edit.ps1` | **Batch market-skill edit renderer** — reads `market_skill_run\plan.tsv` (src/start/end/clip_id/hook/title/caption), renders missing clips via `scripts\skill_edit.py`, stages them into `posts\skill-edit\<date>_<id>_SKILL-EDIT.mp4` + `.srt` + `_CAPTION.txt`, and writes `schedule-manifest.json` (2 slots/day × 5 days, YouTube integration id). See `posts\skill-edit\README.md`. |
+| `scripts\schedule-skill-edit.ps1` | **Skill-edit scheduler** — dry-run by default; `-Post` uploads each staged MP4 to local Postiz (`POST /api/public/v1/upload`, raw `Authorization: <apiKey>` header — no "Bearer" prefix) and creates the 10 scheduled YouTube posts from the manifest. |
 
 ### Self-hosted uploader — why and how it works
 

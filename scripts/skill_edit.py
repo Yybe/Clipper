@@ -8,8 +8,8 @@ Guarantees vs the openshorts complaints:
 import json, subprocess, sys, os, re
 
 RUN_DIR = os.path.dirname(os.path.abspath(__file__))
-SOURCE = os.environ.get("SKILL_SOURCE", os.path.join(RUN_DIR, "source.mp4"))
-SEGMENTS = os.environ.get("SKILL_SEGS", os.path.join(RUN_DIR, "segments.json"))
+SOURCE = os.path.abspath(os.environ.get("SKILL_SOURCE", os.path.join(RUN_DIR, "source.mp4")))
+SEGMENTS = os.path.abspath(os.environ.get("SKILL_SEGS", os.path.join(RUN_DIR, "segments.json")))
 
 def fmt(t: float) -> str:
     h, r = divmod(t, 3600); m, s = divmod(r, 60)
@@ -20,6 +20,10 @@ def srt_time(t: float) -> str:
     return f"{int(h):02d}:{int(m):02d}:{int(s):02d},{int((s % 1) * 1000):03d}"
 
 SENT_END = re.compile(r"[.!?…:]$")
+
+def clean(text):
+    # whisper emits hyphenated words as "pre -order"
+    return re.sub(r"\s+-(?=\w)", "", text)
 
 def build_lines(words, lo, hi):
     """Group words into sentence-ish caption lines clamped to [lo, hi]."""
@@ -35,10 +39,10 @@ def build_lines(words, lo, hi):
         sentence_end = SENT_END.search(w["w"]) and long_enough
         too_long = len(cur) >= 8 or (cur[-1]["e"] - cur_start) >= 3.6
         if sentence_end or too_long:
-            lines.append((cur_start, cur[-1]["e"], " ".join(x["w"].strip() for x in cur)))
+            lines.append((cur_start, cur[-1]["e"], clean(" ".join(x["w"].strip() for x in cur))))
             cur, cur_start = [], None
     if cur:
-        lines.append((cur_start, cur[-1]["e"], " ".join(x["w"].strip() for x in cur)))
+        lines.append((cur_start, cur[-1]["e"], clean(" ".join(x["w"].strip() for x in cur))))
     return lines
 
 def main(start, end, clip_id, hook):
@@ -57,7 +61,7 @@ def main(start, end, clip_id, hook):
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
         "Style: Cap,Arial Black,72,&H00FFFFFF,&H0000FFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,7,2,2,60,60,560,1",
-        "Style: Hook,Impact,88,&H0000FFFF,&H000000FF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,9,3,2,40,40,300,1",
+        "Style: Hook,Impact,88,&H0000FFFF,&H000000FF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,9,3,8,40,40,220,1",
         "", "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         f"Dialogue: 1,0:00:00.10,0:00:02.60,Hook,,0,0,0,,{hook}",

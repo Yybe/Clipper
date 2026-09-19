@@ -1,6 +1,7 @@
 # Secrets
 .env
 cookies.txt
+.tmp-auth/
 uploader/credentials/
 postiz/.env
 postiz/.admin-credentials
@@ -24,6 +25,9 @@ bin/
 
 # Posted-clip exports (copies with clean names)
 posts/
+
+# skill_edit.py burn-in artifact (written next to RUN_DIR)
+scripts/subs.ass
 
 # ZCode session artifacts (may contain pasted secrets)
 .zcode/plans/

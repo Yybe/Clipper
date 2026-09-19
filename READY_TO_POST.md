@@ -1,3 +1,30 @@
+# Scheduled — 2026-09-20 → 09-24 (SKILL-EDIT batch #2: 10 clips, 2/day × 5 days, YouTube via Postiz)
+
+**All 10 are already scheduled in local Postiz (state QUEUE, confirmed via `GET /api/public/v1/posts`)** —
+nothing to post manually. Files staged in `posts/skill-edit/` (`<date>_<id>_SKILL-EDIT.mp4` + `.srt` +
+`_CAPTION.txt`); format rules + reproduction workflow in `posts/skill-edit/README.md`.
+Slots: 10:00 + 18:30 local (04:30 + 13:00 UTC) daily. Lineup:
+
+| Date | Slot | Clip | Title |
+|---|---|---|---|
+| 09-20 | 10:00 | gta6-physical | GTA 6 Is Getting a Physical Edition... For $125 |
+| 09-20 | 18:30 | gamepass-day1 | Xbox Game Pass Day-1 Games Might Be Gone |
+| 09-21 | 10:00 | kojima-physint-sony | Why Sony Walked Away From Kojima's Next Game |
+| 09-21 | 18:30 | gtaonline2-twitch | Twitch Boss Is Convinced GTA Online 2 Launches Next Year |
+| 09-22 | 10:00 | wow-forever-blizzcon | Blizzard: There Has Never Been a Better Time to Start WoW |
+| 09-22 | 18:30 | re-movie-review | The New Resident Evil Movie Nails What Games Feel Like |
+| 09-23 | 10:00 | steamframe-price | Valve's Steam Frame Is Here and It Costs More Than a PC |
+| 09-23 | 18:30 | nintendo-sale-loophole | Nintendo's Appreciation Sale Is Hiding Most of Its Deals |
+| 09-24 | 10:00 | kh-keyblade-fortnite | Fortnite Just Added the Kingdom Hearts Keyblade |
+| 09-24 | 18:30 | psn-boycott | Gamers Are Boycotting PlayStation Over the Death of Discs |
+
+All 1080×1920, 17.8–27.4 s, sentence-boundary cuts (no mid-word audio starts, silencedetect-verified),
+dense word-timed captions, original narrator audio (neutral-accent sources only — see user accent rule).
+To re-run or reschedule: `scriptsender-skill-edit.ps1` (from `market_skill_run\plan.tsv`) then
+`scripts\schedule-skill-edit.ps1` (dry-run default; `-Post` to send to Postiz).
+
+---
+
 # Ready-to-post batch — 2026-09-19b (MARKET-SKILL EDIT: video-clip-editor, Sony ownership story)
 
 **Pick:** `posts/2026-09-19_sony-you-dont-own-your-games_SKILL-EDIT.mp4` (26.4 s, 1080×1920)
