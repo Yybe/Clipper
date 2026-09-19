@@ -1,3 +1,18 @@
+# Ready-to-post batch — 2026-09-19 (fresh-research gaming short, IGN Sept-2026 slate)
+
+**Pick:** `posts/2026-09-19_the-most-chaotic-racing-game-you-need-to-see_90.mp4` (31.1 s, 1080×1920, score 90)
+Hook burned: "The most chaotic racing game ever made." — Hot Wheels Infinite Rush segment from IGN's
+"The Biggest Game Releases of September 2026" (`8CpXbD0FXBA`), job `a9b19fc5-dc8b-4273-824d-34478348753f`.
+Topic angle from research: Sept 2026 is the busiest release month in years because publishers are
+dodging GTA 6's Nov 19 drop. Caption: `*_CAPTION.txt` alongside the MP4.
+Alt picks from the same job (all in band): clip_1 (85, "Why was this game banned in Australia?"),
+clip_4 (82, Grinch), clip_2 (78, farming), clip_5 (75, worst-trailer) — in `openshorts\output\a9b19fc5-…\`.
+
+Post when ready (dry-run first, human gate per AGENTS.md):
+`uploader.bat post --job a9b19fc5-dc8b-4273-824d-34478348753f --clip 2` then add `--post --yes` for the real leg.
+
+---
+
 # Ready-to-post batch — 2026-09-06/07 (multi-game viral batch)
 
 **POSTED 2026-09-07** to the **Wybe** YouTube channel (@wybe5048, `xx.shiv.xx2212@gmail.com`) **AND Bilibili** (_Wybe_, uid 3745039282867460):
