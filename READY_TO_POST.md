@@ -1,3 +1,19 @@
+# Ready-to-post batch — 2026-09-19b (MARKET-SKILL EDIT: video-clip-editor, Sony ownership story)
+
+**Pick:** `posts/2026-09-19_sony-you-dont-own-your-games_SKILL-EDIT.mp4` (25.2 s, 1080×1920)
+Built with the Qoder-market `video-clip-editor` skill's Mode-B workflow (NOT openshorts) to fix the
+two reported defects: cut snaps to whisper WORD timestamps at a sentence boundary ("First up, …" —
+full first word audible, silencedetect-verified) and captions cover 100% of the runtime
+(7 lines, word-timed). Hook burned: "SONY: you DON'T own your games". Source: Gaming Hardcore
+"Gaming News - September 18" (`jPmzz1wHcio`). Caption: `*_CAPTION.txt` + same-timeline `.srt`.
+Editor tooling kept at `scripts/skill_edit.py` (source in gitignored `market_skill_run/`).
+
+Post when ready (dry-run first, human gate per AGENTS.md):
+`uploader.bat post --job <this-file-directly> --clip 0` — this file is outside the openshorts job
+layout, so post it via the direct-file path or copy into a job dir first.
+
+---
+
 # Ready-to-post batch — 2026-09-19 (fresh-research gaming short, IGN Sept-2026 slate)
 
 **Pick:** `posts/2026-09-19_the-most-chaotic-racing-game-you-need-to-see_90.mp4` (31.1 s, 1080×1920, score 90)
