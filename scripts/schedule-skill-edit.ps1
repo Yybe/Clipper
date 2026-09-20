@@ -58,6 +58,11 @@ for ($i = 0; $i -lt $entries.Count; $i++) {
   if ($LASTEXITCODE -ne 0) { Write-Host "upload failed: $upRaw"; exit 1 }
   $media = $upRaw | ConvertFrom-Json
   if (-not $media.id) { Write-Host "upload response had no id: $upRaw"; exit 1 }
+  # YouTube's provider HEADs http media paths through an SSRF guard that blocks
+  # localhost, and statSync(UPLOAD_DIRECTORY + path) for local ones - so the
+  # stored path must be upload-dir-relative ("/2026-09-20/xyz.mp4"), not the
+  # absolute URL /upload hands back.
+  $mediaPath = $media.path -replace ('^' + [regex]::Escape($pzBase) + '/uploads'), '' -replace '^/uploads', ''
 
   $tags = @([regex]::Matches($e.caption, "#\w+") | ForEach-Object { $_.Value.TrimStart('#').ToLower() } | Select-Object -Unique | Select-Object -First 10)
   $settings = @{
