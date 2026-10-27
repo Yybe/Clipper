@@ -1,7 +1,15 @@
-# Scheduled — 2026-09-20 → 09-24 (SKILL-EDIT batch #2: 10 clips, 2/day × 5 days, YouTube via Postiz)
+# Scheduled — 2026-09-20 → 09-24 (SKILL-EDIT batch #2: 10 clips, 2/day × 5 days, YouTube via Postiz) — **OUTCOME: 2 of 10 published**
 
-**All 10 are already scheduled in local Postiz (state QUEUE, confirmed via `GET /api/public/v1/posts`)** —
-nothing to post manually. Files staged in `posts/skill-edit/` (`<date>_<id>_SKILL-EDIT.mp4` + `.srt` +
+**Scheduling itself was real and verified** on 2026-09-20: all 10 rows confirmed `state: QUEUE` via
+`GET /api/public/v1/posts`. **What actually happened afterwards (re-checked 2026-10-27 against the
+channel's uploads playlist): only 2 of the 10 clips were ever published** —
+`gta6-physical` → https://www.youtube.com/watch?v=Ek7RnRC_Y7o (Postiz, after a UI re-auth, 904 views)
+and `gamepass-day1` → https://youtube.com/shorts/1vN5vjtBmVQ (recovered by hand through the `uploader`
+leg after Postiz missed the slot, 1,253 views). The remaining **8 never fired**: Docker Desktop does not
+auto-start, and Postiz's YouTube integration kept an empty `refreshToken` so every slot more than ~1 h
+after the reconnect failed. **This batch is dead, not pending** — re-scheduling requires a fresh
+Postiz OAuth grant (revoke the app first, then reconnect) or the `uploader` leg.
+Files are still staged in `posts/skill-edit/` (`<date>_<id>_SKILL-EDIT.mp4` + `.srt` +
 `_CAPTION.txt`); format rules + reproduction workflow in `posts/skill-edit/README.md`.
 Slots: 10:00 + 18:30 local (04:30 + 13:00 UTC) daily. Lineup:
 
@@ -61,20 +69,30 @@ Post when ready (dry-run first, human gate per AGENTS.md):
 
 # Ready-to-post batch — 2026-09-06/07 (multi-game viral batch)
 
-**POSTED 2026-09-07** to the **Wybe** YouTube channel (@wybe5048, `xx.shiv.xx2212@gmail.com`) **AND Bilibili** (_Wybe_, uid 3745039282867460):
+**POSTED 2026-09-07** to the **Wybe** YouTube channel (@wybe5048; the owning Google account address has
+been redacted from this file because the repo is public) **AND Bilibili** (_Wybe_, uid 3745039282867460).
 
-| Clip | Score | YouTube | Bilibili |
+**Re-checked 2026-10-27: all five YouTube links below are DEAD.** They are absent from the channel's
+uploads playlist and return `404` via oEmbed — deleted or made private after posting, with no removal
+record in this repo. **Their views are therefore not counted anywhere and are not claimable.** The
+Bilibili links could be neither confirmed nor denied from this machine (Bilibili's API answers `412
+Precondition Failed` and the pages serve only JavaScript), so they are **unverified**, not "posted and
+live".
+
+| Clip | Score | YouTube (status 2026-10-27) | Bilibili (unverifiable) |
 |---|---|---|---|
-| "Rockstar really just finessed us all." | 92 | https://youtube.com/shorts/qtyxVepAXvk | https://www.bilibili.com/video/BV1LNbt6yEzS |
-| "Wait, did you steal my car?!" | 90 | https://youtube.com/shorts/YBfKlaEUddM | https://www.bilibili.com/video/BV1vNbt6yE2H |
-| "Oh shit, vampires? This is awesome." | 88 | https://youtube.com/shorts/XIXf4SZIcxM | https://www.bilibili.com/video/BV15Nbt6yE8y |
-| "Is this the most brutal stealth game?" | 88 | https://youtube.com/shorts/oLjhM5T0fpo | https://www.bilibili.com/video/BV1VNbt6yEfH |
-| "This massive 2K27 update is a W." | 88 | https://youtube.com/shorts/hWS5GB6tgTA | https://www.bilibili.com/video/BV15Nbt6yETm |
+| "Rockstar really just finessed us all." | 92 | ~~shorts/qtyxVepAXvk~~ **404 / removed** | BV1LNbt6yEzS |
+| "Wait, did you steal my car?!" | 90 | ~~shorts/YBfKlaEUddM~~ **404 / removed** | BV1vNbt6yE2H |
+| "Oh shit, vampires? This is awesome." | 88 | ~~shorts/XIXf4SZIcxM~~ **404 / removed** | BV15Nbt6yE8y |
+| "Is this the most brutal stealth game?" | 88 | ~~shorts/oLjhM5T0fpo~~ **404 / removed** | BV1VNbt6yEfH |
+| "This massive 2K27 update is a W." | 88 | ~~shorts/hWS5GB6tgTA~~ **404 / removed** | BV15Nbt6yETm |
 
-An earlier batch went to the wrong channel ("Shivam Tripathi", UCukwNg3W2iujMume3-3YpcA) before the
-correct OAuth account was selected — those 5 URLs (`4YyxY6Q6TJ4`, `xweIW0EO7uk`, `JjfxecHze1s`,
-`QtzQqViA3sk`, `T9K4xBeJv9s`) are duplicates on the wrong channel and can be deleted from YouTube
-Studio.
+Two earlier runs landed on the **wrong, personal channel** ("Shivam Tripathi",
+`UCukwNg3W2iujMume3-3YpcA`) before the correct OAuth account was selected. That is **10 duplicate
+uploads**, not 5 — `4YyxY6Q6TJ4`, `xweIW0EO7uk`, `JjfxecHze1s`, `Od0YUdvElhQ`, `JbScLgl_5lw`,
+`8ReJYysR-5A`, `SDxaeJECbvg`, `JssWWXp4LkY`, `QtzQqViA3sk`, `T9K4xBeJv9s` (1,890 views combined).
+**Verified 2026-10-27: all 10 are still public** — the deletion flagged here on 2026-09-07 was never
+done. They are not project-channel output and must not be quoted as such. **Open action: delete them.**
 
 8 sources → 8 completed jobs → 40 finished clips in the review queue
 (`openshorts\output\<job_id>\`, also visible at <http://localhost:5175>).
@@ -87,7 +105,7 @@ hook overlay + karaoke captions verified frame-by-frame.
 | Leg | Status |
 |---|---|
 | Upload-Post (YT + IG) | key valid, but **10/10 uploads used** (`last_reset 2026-08-28` → next window opens ~**Sep 28**). First post attempt tonight returned `429 … You have 0 upload(s) remaining` |
-| YouTube self-hosted | OAuth app "Clipper" is in **Testing** mode and `omshiv2218@gmail.com` is not an approved tester (`403 access_denied`). Fix: Cloud Console → OAuth consent screen → add that account as test user (or publish the app), then `uploader.bat login --platform youtube` |
+| YouTube self-hosted | OAuth app "Clipper" is in **Testing** mode and the tester Google account (address redacted — public repo) was not an approved tester (`403 access_denied`). Fix: Cloud Console → OAuth consent screen → add that account as test user (or publish the app), then `uploader.bat login --platform youtube` |
 | Bilibili | cookies invalidated server-side (`-101 账号未登录`); browser is logged out too. Re-login in Chrome, re-export `BILI_SESSDATA`/`BILI_JCT`/`BILI_BUVID3` into `.env` |
 | Instagram / Facebook / TikTok self-hosted | never configured (no Meta app token / TikTok OAuth) — `uploader.bat check` prints exact steps |
 
